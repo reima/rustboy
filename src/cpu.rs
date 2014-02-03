@@ -191,6 +191,15 @@ impl Addressing16 {
       Reg16Indirect16(r) => { let addr = r.load(cpu); cpu.mem.loadw(addr) }
     }
   }
+
+  fn store<M: mem::Mem>(&self, cpu: &mut Cpu<M>, val: u16) {
+    match *self {
+      Indirect16(addr)   => cpu.mem.storew(addr, val),
+      Reg16(r)           => r.store(cpu, val),
+      Reg16Indirect16(r) => { let addr = r.load(cpu); cpu.mem.storew(addr, val) }
+      _ => fail!("invalid addressing mode for 16-bit store")
+    }
+  }
 }
 
 pub enum Condition {
