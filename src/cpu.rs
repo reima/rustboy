@@ -266,6 +266,23 @@ pub trait Decoder<R> {
   fn undef(&mut self) -> R;
 }
 
+// Several instructions use a 3 bit part of the opcode to encode common
+// operands, this method decodes the operand from the lower 3 bits
+fn decode_addr(code: u8) -> Addr8 {
+  match code & 0x07 {
+    0x00 => Reg8(B),
+    0x01 => Reg8(C),
+    0x02 => Reg8(D),
+    0x03 => Reg8(E),
+    0x04 => Reg8(H),
+    0x05 => Reg8(L),
+    0x06 => Reg16Ind8(HL),
+    0x07 => Reg8(A),
+    _    => fail!("logic error"),
+  }
+}
+
+// Source: http://www.pastraiser.com/cpu/gameboy/gameboy_opcodes.html
 pub fn decode<M: mem::Mem, R, D: Decoder<R>>(mem: &mut M,
                                              pc: &mut u16,
                                              d: &mut D) -> R {
@@ -355,157 +372,26 @@ pub fn decode<M: mem::Mem, R, D: Decoder<R>>(mem: &mut M,
     0x3e => { let imm = fetchb(); d.ld8(Reg8(A), Imm8(imm)) }
     0x3f => d.ccf(),
 
-    // 0x40
-    0x40 => d.ld8(Reg8(B), Reg8(B)),
-    0x41 => d.ld8(Reg8(B), Reg8(C)),
-    0x42 => d.ld8(Reg8(B), Reg8(D)),
-    0x43 => d.ld8(Reg8(B), Reg8(E)),
-    0x44 => d.ld8(Reg8(B), Reg8(H)),
-    0x45 => d.ld8(Reg8(B), Reg8(L)),
-    0x46 => d.ld8(Reg8(B), Reg16Ind8(HL)),
-    0x47 => d.ld8(Reg8(B), Reg8(A)),
-
-    0x48 => d.ld8(Reg8(C), Reg8(B)),
-    0x49 => d.ld8(Reg8(C), Reg8(C)),
-    0x4a => d.ld8(Reg8(C), Reg8(D)),
-    0x4b => d.ld8(Reg8(C), Reg8(E)),
-    0x4c => d.ld8(Reg8(C), Reg8(H)),
-    0x4d => d.ld8(Reg8(C), Reg8(L)),
-    0x4e => d.ld8(Reg8(C), Reg16Ind8(HL)),
-    0x4f => d.ld8(Reg8(C), Reg8(A)),
-
-    // 0x50
-    0x50 => d.ld8(Reg8(D), Reg8(B)),
-    0x51 => d.ld8(Reg8(D), Reg8(C)),
-    0x52 => d.ld8(Reg8(D), Reg8(D)),
-    0x53 => d.ld8(Reg8(D), Reg8(E)),
-    0x54 => d.ld8(Reg8(D), Reg8(H)),
-    0x55 => d.ld8(Reg8(D), Reg8(L)),
-    0x56 => d.ld8(Reg8(D), Reg16Ind8(HL)),
-    0x57 => d.ld8(Reg8(D), Reg8(A)),
-
-    0x58 => d.ld8(Reg8(E), Reg8(B)),
-    0x59 => d.ld8(Reg8(E), Reg8(C)),
-    0x5a => d.ld8(Reg8(E), Reg8(D)),
-    0x5b => d.ld8(Reg8(E), Reg8(E)),
-    0x5c => d.ld8(Reg8(E), Reg8(H)),
-    0x5d => d.ld8(Reg8(E), Reg8(L)),
-    0x5e => d.ld8(Reg8(E), Reg16Ind8(HL)),
-    0x5f => d.ld8(Reg8(E), Reg8(A)),
-
-    // 0x60
-    0x60 => d.ld8(Reg8(H), Reg8(B)),
-    0x61 => d.ld8(Reg8(H), Reg8(C)),
-    0x62 => d.ld8(Reg8(H), Reg8(D)),
-    0x63 => d.ld8(Reg8(H), Reg8(E)),
-    0x64 => d.ld8(Reg8(H), Reg8(H)),
-    0x65 => d.ld8(Reg8(H), Reg8(L)),
-    0x66 => d.ld8(Reg8(H), Reg16Ind8(HL)),
-    0x67 => d.ld8(Reg8(H), Reg8(A)),
-
-    0x68 => d.ld8(Reg8(L), Reg8(B)),
-    0x69 => d.ld8(Reg8(L), Reg8(C)),
-    0x6a => d.ld8(Reg8(L), Reg8(D)),
-    0x6b => d.ld8(Reg8(L), Reg8(E)),
-    0x6c => d.ld8(Reg8(L), Reg8(H)),
-    0x6d => d.ld8(Reg8(L), Reg8(L)),
-    0x6e => d.ld8(Reg8(L), Reg16Ind8(HL)),
-    0x6f => d.ld8(Reg8(L), Reg8(A)),
-
-    // 0x70
-    0x70 => d.ld8(Reg16Ind8(HL), Reg8(B)),
-    0x71 => d.ld8(Reg16Ind8(HL), Reg8(C)),
-    0x72 => d.ld8(Reg16Ind8(HL), Reg8(D)),
-    0x73 => d.ld8(Reg16Ind8(HL), Reg8(E)),
-    0x74 => d.ld8(Reg16Ind8(HL), Reg8(H)),
-    0x75 => d.ld8(Reg16Ind8(HL), Reg8(L)),
+    // 0x40-0x70
+    0x40..0x75 | 0x77..0x7f
+         => d.ld8(decode_addr(opcode >> 3), decode_addr(opcode)),
     0x76 => d.halt(),
-    0x77 => d.ld8(Reg16Ind8(HL), Reg8(A)),
-
-    0x78 => d.ld8(Reg8(A), Reg8(B)),
-    0x79 => d.ld8(Reg8(A), Reg8(C)),
-    0x7a => d.ld8(Reg8(A), Reg8(D)),
-    0x7b => d.ld8(Reg8(A), Reg8(E)),
-    0x7c => d.ld8(Reg8(A), Reg8(H)),
-    0x7d => d.ld8(Reg8(A), Reg8(L)),
-    0x7e => d.ld8(Reg8(A), Reg16Ind8(HL)),
-    0x7f => d.ld8(Reg8(A), Reg8(A)),
 
     // 0x80
-    0x80 => d.add8(Reg8(B)),
-    0x81 => d.add8(Reg8(C)),
-    0x82 => d.add8(Reg8(D)),
-    0x83 => d.add8(Reg8(E)),
-    0x84 => d.add8(Reg8(H)),
-    0x85 => d.add8(Reg8(L)),
-    0x86 => d.add8(Reg16Ind8(HL)),
-    0x87 => d.add8(Reg8(A)),
-
-    0x88 => d.adc(Reg8(B)),
-    0x89 => d.adc(Reg8(C)),
-    0x8a => d.adc(Reg8(D)),
-    0x8b => d.adc(Reg8(E)),
-    0x8c => d.adc(Reg8(H)),
-    0x8d => d.adc(Reg8(L)),
-    0x8e => d.adc(Reg16Ind8(HL)),
-    0x8f => d.adc(Reg8(A)),
+    0x80..0x87 => d.add8(decode_addr(opcode)),
+    0x88..0x8f => d.adc(decode_addr(opcode)),
 
     // 0x90
-    0x90 => d.sub(Reg8(B)),
-    0x91 => d.sub(Reg8(C)),
-    0x92 => d.sub(Reg8(D)),
-    0x93 => d.sub(Reg8(E)),
-    0x94 => d.sub(Reg8(H)),
-    0x95 => d.sub(Reg8(L)),
-    0x96 => d.sub(Reg16Ind8(HL)),
-    0x97 => d.sub(Reg8(A)),
-
-    0x98 => d.sbc(Reg8(B)),
-    0x99 => d.sbc(Reg8(C)),
-    0x9a => d.sbc(Reg8(D)),
-    0x9b => d.sbc(Reg8(E)),
-    0x9c => d.sbc(Reg8(H)),
-    0x9d => d.sbc(Reg8(L)),
-    0x9e => d.sbc(Reg16Ind8(HL)),
-    0x9f => d.sbc(Reg8(A)),
+    0x90..0x97 => d.sub(decode_addr(opcode)),
+    0x98..0x9f => d.sbc(decode_addr(opcode)),
 
     // 0xa0
-    0xa0 => d.and(Reg8(B)),
-    0xa1 => d.and(Reg8(C)),
-    0xa2 => d.and(Reg8(D)),
-    0xa3 => d.and(Reg8(E)),
-    0xa4 => d.and(Reg8(H)),
-    0xa5 => d.and(Reg8(L)),
-    0xa6 => d.and(Reg16Ind8(HL)),
-    0xa7 => d.and(Reg8(A)),
-
-    0xa8 => d.xor(Reg8(B)),
-    0xa9 => d.xor(Reg8(C)),
-    0xaa => d.xor(Reg8(D)),
-    0xab => d.xor(Reg8(E)),
-    0xac => d.xor(Reg8(H)),
-    0xad => d.xor(Reg8(L)),
-    0xae => d.xor(Reg16Ind8(HL)),
-    0xaf => d.xor(Reg8(A)),
+    0xa0..0xa7 => d.and(decode_addr(opcode)),
+    0xa8..0xaf => d.xor(decode_addr(opcode)),
 
     // 0xb0
-    0xb0 => d.or(Reg8(B)),
-    0xb1 => d.or(Reg8(C)),
-    0xb2 => d.or(Reg8(D)),
-    0xb3 => d.or(Reg8(E)),
-    0xb4 => d.or(Reg8(H)),
-    0xb5 => d.or(Reg8(L)),
-    0xb6 => d.or(Reg16Ind8(HL)),
-    0xb7 => d.or(Reg8(A)),
-
-    0xb8 => d.cp(Reg8(B)),
-    0xb9 => d.cp(Reg8(C)),
-    0xba => d.cp(Reg8(D)),
-    0xbb => d.cp(Reg8(E)),
-    0xbc => d.cp(Reg8(H)),
-    0xbd => d.cp(Reg8(L)),
-    0xbe => d.cp(Reg16Ind8(HL)),
-    0xbf => d.cp(Reg8(A)),
+    0xb0..0xb7 => d.or(decode_addr(opcode)),
+    0xb8..0xbf => d.cp(decode_addr(opcode)),
 
     // 0xc0
     0xc0 => d.ret(CondNZ),
@@ -522,18 +408,7 @@ pub fn decode<M: mem::Mem, R, D: Decoder<R>>(mem: &mut M,
     0xca => { let imm = fetchw(); d.jp(CondZ, Imm16(imm)) }
     0xcb => {
       let extra = fetchb();
-
-      let addr = match extra & 0x07 {
-        0x00 => Reg8(B),
-        0x01 => Reg8(C),
-        0x02 => Reg8(D),
-        0x03 => Reg8(E),
-        0x04 => Reg8(H),
-        0x05 => Reg8(L),
-        0x06 => Reg16Ind8(HL),
-        0x07 => Reg8(A),
-        _    => fail!("logic error"),
-      };
+      let addr = decode_addr(extra);
 
       match extra & 0xf8 {
         0x00 => d.rlc(addr),
