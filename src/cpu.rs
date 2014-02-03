@@ -544,31 +544,13 @@ pub fn decode<M: mem::Mem, R, D: Decoder<R>>(mem: &mut M,
         0x28 => d.sra(addr),
         0x30 => d.swap(addr),
         0x38 => d.srl(addr),
-        0x40 => d.bit(0, addr),
-        0x48 => d.bit(1, addr),
-        0x50 => d.bit(2, addr),
-        0x58 => d.bit(3, addr),
-        0x60 => d.bit(4, addr),
-        0x68 => d.bit(5, addr),
-        0x70 => d.bit(6, addr),
-        0x78 => d.bit(7, addr),
-        0x80 => d.res(0, addr),
-        0x88 => d.res(1, addr),
-        0x90 => d.res(2, addr),
-        0x98 => d.res(3, addr),
-        0xa0 => d.res(4, addr),
-        0xa8 => d.res(5, addr),
-        0xb0 => d.res(6, addr),
-        0xb8 => d.res(7, addr),
-        0xc0 => d.set(0, addr),
-        0xc8 => d.set(1, addr),
-        0xd0 => d.set(2, addr),
-        0xd8 => d.set(3, addr),
-        0xe0 => d.set(4, addr),
-        0xe8 => d.set(5, addr),
-        0xf0 => d.set(6, addr),
-        0xf8 => d.set(7, addr),
-        _    => fail!("logic error")
+        0x40..0x78 =>
+                d.bit((extra >> 3) & 0b111, addr),
+        0x80..0xb8 =>
+                d.res((extra >> 3) & 0b111, addr),
+        0xc0..0xf8 =>
+                d.set((extra >> 3) & 0b111, addr),
+        _ => fail!("logic error")
       }
     }
     0xcc => { let imm = fetchw(); d.call(CondZ, Imm16(imm)) }
