@@ -16,8 +16,10 @@ clean:
 	rm -f $(TARGET) $(DEPS)
 	rm -d $(BUILD)
 
-$(TARGET): $(SRC)/main.rs
-	mkdir -p $(BUILD)
+$(TARGET): $(SRC)/main.rs |$(BUILD)
 	$(RUST) $< -o $@ --dep-info $(DEPS)
+
+$(BUILD):
+	mkdir $(BUILD)
 
 -include $(DEPS)
