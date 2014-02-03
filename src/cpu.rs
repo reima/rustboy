@@ -129,20 +129,16 @@ impl Addressing8 {
         let offset = r.load(cpu);
         cpu.mem.loadb(0xff00 + offset as u16)
       }
-      Reg16Indirect8(r)    => {
-        let addr = r.load(cpu);
-        cpu.mem.loadb(addr)
-      }
-      Reg16Indirect8Inc(r) => {
-        let prev = r.load(cpu);
-        let result = cpu.mem.loadb(prev);
-        r.store(cpu, prev + 1);
-        result
-      }
+      Reg16Indirect8(r) |
+      Reg16Indirect8Inc(r) |
       Reg16Indirect8Dec(r) => {
-        let prev = r.load(cpu);
-        let result = cpu.mem.loadb(prev);
-        r.store(cpu, prev - 1);
+        let addr = r.load(cpu);
+        let result = cpu.mem.loadb(addr);
+        match *self {
+          Reg16Indirect8Inc(_) => r.store(cpu, addr + 1),
+          Reg16Indirect8Dec(_) => r.store(cpu, addr - 1),
+          _                    => ()
+        }
         result
       }
     }
@@ -156,20 +152,17 @@ impl Addressing8 {
         let offset = r.load(cpu);
         cpu.mem.storeb(0xff00 + offset as u16, val)
       }
-      Reg16Indirect8(r) => {
-        let addr = r.load(cpu);
-        cpu.mem.storeb(addr, val)
-      },
-      Reg16Indirect8Inc(r) => {
-        let prev = r.load(cpu);
-        cpu.mem.storeb(prev, val);
-        r.store(cpu, prev + 1);
-      },
+      Reg16Indirect8(r) |
+      Reg16Indirect8Inc(r) |
       Reg16Indirect8Dec(r) => {
-        let prev = r.load(cpu);
-        cpu.mem.storeb(prev, val);
-        r.store(cpu, prev - 1);
-      },
+        let addr = r.load(cpu);
+        cpu.mem.storeb(addr, val);
+        match *self {
+          Reg16Indirect8Inc(_) => r.store(cpu, addr + 1),
+          Reg16Indirect8Dec(_) => r.store(cpu, addr - 1),
+          _                    => ()
+        }
+      }
       _  => fail!("invalid addressing mode for 8-bit store")
     }
   }
