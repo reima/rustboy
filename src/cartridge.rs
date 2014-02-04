@@ -43,6 +43,7 @@ impl Cartridge {
 
     let rom_size_bytes = 1 << (15 + header.rom_size);
     let mut rom = vec::from_elem(rom_size_bytes, 0u8);
+    file.seek(0, SeekSet);
     file.read(rom);
 
     Cartridge { header: header, rom: rom }

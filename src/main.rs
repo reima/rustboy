@@ -12,10 +12,10 @@ fn main() {
 
   let mut cart = cartridge::Cartridge::from_path(&Path::new(args[1]));
   let mut d = disasm::Disasm;
-  let mut pc = 0u16;
-  while pc < 0x8000u16 - 0x150u16 {
+  let mut pc = 0x150u16;
+  while (pc as uint) < cart.rom.len() {
     let temp = pc;
-    println!("{:04X}: {:s}", temp + 0x150, cpu::decode(&mut cart.rom, &mut pc, &mut d));
+    println!("{:04X}: {:s}", temp, cpu::decode(&mut cart.rom, &mut pc, &mut d));
   }
 }
 
