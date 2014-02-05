@@ -4,10 +4,15 @@ use mem;
 // Statics
 //
 
-static CARRY_FLAG:      u8 = 1 << 4;
-static HALF_CARRY_FLAG: u8 = 1 << 5;
-static ADD_SUB_FLAG:    u8 = 1 << 6;
-static ZERO_FLAG:       u8 = 1 << 7;
+static CARRY_OFFSET:      u8 = 4;
+static HALF_CARRY_OFFSET: u8 = 5;
+static ADD_SUB_OFFSET:    u8 = 6;
+static ZERO_OFFSET:       u8 = 7;
+
+static CARRY_FLAG:        u8 = 1 << CARRY_OFFSET;
+static HALF_CARRY_FLAG:   u8 = 1 << HALF_CARRY_OFFSET;
+static ADD_SUB_FLAG:      u8 = 1 << ADD_SUB_OFFSET;
+static ZERO_FLAG:         u8 = 1 << ZERO_OFFSET;
 
 
 //
@@ -201,6 +206,18 @@ pub enum Cond {
   CondNZ,
   CondC,
   CondNC
+}
+
+impl Cond {
+  fn eval<M: mem::Mem>(self, cpu: &Cpu<M>) -> bool {
+    match self {
+      CondNone => true,
+      CondZ    => (cpu.regs.f & ZERO_FLAG) != 0,
+      CondNZ   => (cpu.regs.f & ZERO_FLAG) == 0,
+      CondC    => (cpu.regs.f & CARRY_FLAG) != 0,
+      CondNC   => (cpu.regs.f & CARRY_FLAG) == 0,
+    }
+  }
 }
 
 pub trait Decoder<R> {
@@ -515,5 +532,265 @@ impl<M: mem::Mem> Cpu<M> {
   }
 }
 
-// impl<M: mem::Mem> Decoder<()> for Cpu<M> {
-// }
+// Opcode implementation.
+// Source: http://www.z80.info/z80code.txt
+impl<M: mem::Mem> Decoder<()> for Cpu<M> {
+  //
+  // Misc/control
+  //
+
+  fn di  (&mut self)          { fail!("instruction not implemented: di") }
+  fn ei  (&mut self)          { fail!("instruction not implemented: ei") }
+  fn halt(&mut self)          { fail!("instruction not implemented: halt") }
+  fn nop (&mut self)          { }
+  fn stop(&mut self, val: u8) { fail!("instruction not implemented: stop") }
+
+  //
+  // Jump/call
+  //
+
+  fn call(&mut self, cond: Cond, addr: Addr16) {
+    if cond.eval(self) {
+      self.push(Reg16(PC));
+      self.ld16(Reg16(PC), addr);
+    }
+  }
+
+  fn jp(&mut self, cond: Cond, addr: Addr16) {
+    if cond.eval(self) {
+      self.ld16(Reg16(PC), addr);
+    }
+  }
+
+  fn jr(&mut self, cond: Cond, rel: i8) {
+    if cond.eval(self) {
+      self.ld16(Reg16(PC), Imm16((self.regs.pc as i16 + rel as i16) as u16));
+    }
+  }
+
+  fn ret(&mut self, cond: Cond) {
+    if cond.eval(self) {
+      self.pop(Reg16(PC));
+    }
+  }
+
+  fn reti(&mut self) {
+    // TODO: Tell someone an interrupt got handled?
+    self.pop(Reg16(PC));
+  }
+
+  fn rst(&mut self, addr: u8) {
+    self.call(CondNone, Imm16(addr as u16));
+  }
+
+  //
+  // Load/store/move
+  //
+
+  fn ld8(&mut self, dst: Addr8,  src: Addr8) {
+    let val = src.load(self);
+    dst.store(self, val);
+  }
+
+  fn ld16(&mut self, dst: Addr16, src: Addr16) {
+    let val = src.load(self);
+    dst.store(self, val);
+  }
+
+  fn ldh (&mut self, dst: Addr8, src: Addr8) {
+    self.ld8(dst, src);
+  }
+
+  fn pop(&mut self, dst: Addr16) {
+    self.ld16(dst, Reg16Ind16(SP));
+    self.regs.sp += 2;
+  }
+
+  fn push(&mut self, src: Addr16) {
+    self.regs.sp -= 2;
+    self.ld16(Reg16Ind16(SP), src);
+  }
+
+  //
+  // Arithmetic/logic
+  //
+
+  fn adc(&mut self, src: Addr8) {
+    // TODO: Flags
+    self.regs.a += src.load(self);
+    if (self.regs.f & CARRY_FLAG) != 0 {
+      self.regs.a += 1;
+    }
+  }
+
+  fn add8(&mut self, src: Addr8) {
+    // TODO: Flags
+    self.regs.a += src.load(self);
+  }
+
+  fn add16(&mut self, dst: Addr16, src: Addr16) {
+    // TODO: Flags
+    let op1 = dst.load(self);
+    let op2 = src.load(self);
+    dst.store(self, op1 + op2);
+  }
+
+  fn and(&mut self, src: Addr8) {
+    // TODO: Flags
+    self.regs.a &= src.load(self);
+  }
+
+  fn ccf(&mut self) {
+    // TODO: Flags
+    self.regs.f ^= CARRY_FLAG;
+  }
+
+  fn cp(&mut self, src: Addr8) {
+    // TODO: Flags
+    self.regs.a - src.load(self); // Senseless without flags, but well...
+  }
+
+  fn cpl(&mut self) {
+    // TODO: Flags
+    self.regs.a = !self.regs.a;
+  }
+
+  fn daa(&mut self) {
+    fail!("instruction not implemented: daa");
+  }
+
+  fn dec8(&mut self, dst: Addr8) {
+    // TODO: Flags
+    let val = dst.load(self);
+    dst.store(self, val - 1);
+  }
+
+  fn dec16(&mut self, dst: Addr16) {
+    let val = dst.load(self);
+    dst.store(self, val - 1);
+  }
+
+  fn inc8(&mut self, dst: Addr8) {
+    // TODO: Flags
+    let val = dst.load(self);
+    dst.store(self, val + 1);
+  }
+
+  fn inc16(&mut self, dst: Addr16) {
+    let val = dst.load(self);
+    dst.store(self, val + 1);
+  }
+
+  fn or(&mut self, src: Addr8) {
+    // TODO: Flags
+    self.regs.a |= src.load(self);
+  }
+
+  fn sbc(&mut self, src: Addr8) {
+    // TODO: Flags
+    self.regs.a -= src.load(self);
+    if (self.regs.f & CARRY_FLAG) != 0 {
+      self.regs.a -= 1;
+    }
+  }
+
+  fn scf(&mut self) {
+    // TODO: Flags
+    self.regs.f |= CARRY_FLAG;
+  }
+
+  fn sub(&mut self, src: Addr8) {
+    // TODO: Flags
+    self.regs.a -= src.load(self);
+  }
+
+  fn xor(&mut self, src: Addr8) {
+    // TODO: Flags
+    self.regs.a ^= src.load(self);
+  }
+
+  //
+  // Rotation/shift/bit
+  //
+
+  fn bit(&mut self, bit: u8, src: Addr8) {
+    fail!("instruction not implemented: bit");
+  }
+
+  fn res(&mut self, bit: u8, dst: Addr8) {
+    let val = dst.load(self);
+    dst.store(self, val & !(1 << bit));
+  }
+
+  fn rl(&mut self, dst: Addr8) {
+    // TODO: Flags
+    let val = dst.load(self);
+    dst.store(self, (val << 1) | ((self.regs.f & CARRY_FLAG) >> CARRY_OFFSET));
+  }
+
+  fn rla(&mut self) {
+    self.rl(Reg8(A));
+  }
+
+  fn rlc(&mut self, dst: Addr8) {
+    // TODO: Flags
+    let val = dst.load(self);
+    dst.store(self, (val << 1) | ((val & 0x80) >> 7));
+  }
+
+  fn rlca(&mut self) {
+    self.rlc(Reg8(A));
+  }
+
+  fn rr(&mut self, dst: Addr8) {
+    // TODO: Flags
+    let val = dst.load(self);
+    dst.store(self, (val >> 1) | (((self.regs.f & CARRY_FLAG) >> CARRY_OFFSET) << 7));
+  }
+
+  fn rra(&mut self) {
+    self.rr(Reg8(A));
+  }
+
+  fn rrc(&mut self, dst: Addr8) {
+    // TODO: Flags
+    let val = dst.load(self);
+    dst.store(self, (val >> 1) | ((val & 0x01) << 7));
+  }
+
+  fn rrca(&mut self) {
+    self.rrc(Reg8(A));
+  }
+
+  fn set(&mut self, bit: u8, dst: Addr8) {
+    let val = dst.load(self);
+    dst.store(self, val | (1 << bit));
+  }
+
+  fn sla(&mut self, dst: Addr8) {
+    // TODO: Flags
+    let val = dst.load(self);
+    dst.store(self, val << 1);
+  }
+
+  fn sra(&mut self, dst: Addr8) {
+    // TODO: Flags
+    let val = dst.load(self);
+    dst.store(self, (val & 0x80) | (val >> 1));
+  }
+
+  fn srl(&mut self, dst: Addr8) {
+    // TODO: Flags
+    let val = dst.load(self);
+    dst.store(self, val >> 1);
+  }
+
+  fn swap(&mut self, dst: Addr8) {
+    // TODO: Flags
+    let val = dst.load(self);
+    dst.store(self, (val >> 4) | (val << 4));
+  }
+
+  // Undefined/illegal
+  fn undef(&mut self) { fail!("illegal instruction") }
+}
