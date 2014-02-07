@@ -530,10 +530,47 @@ impl<M: mem::Mem> Cpu<M> {
     self.regs.pc += 1;
     result
   }
+
+  // Flags helpers
+
+  fn get_flag(&self, flag: u8) -> bool {
+    (self.regs.f & flag) != 0
+  }
+
+  fn set_flag(&mut self, flag: u8, on: bool) {
+    if on {
+      self.regs.f |= flag;
+    } else {
+      self.regs.f &= !flag;
+    }
+  }
+
+  // Addition helper
+  fn add_(&mut self, a: u8, b: u8, c: u8) {
+    let result = a as u32 + b as u32 + c as u32;
+    self.regs.a = result as u8;
+    self.set_flag(ZERO_FLAG, self.regs.a == 0);
+    self.set_flag(ADD_SUB_FLAG, false);
+    self.set_flag(HALF_CARRY_FLAG, (((a & 0xf) + (b & 0xf) + c) & 0x10) != 0);
+    self.set_flag(CARRY_FLAG, (result & 0x100) != 0);
+  }
+
+  // Subtraction helper
+  fn sub_(&mut self, a: u8, b: u8, c: u8) {
+    let result = a as u32 - b as u32 - c as u32;
+    self.regs.a = result as u8;
+    self.set_flag(ZERO_FLAG, self.regs.a == 0);
+    self.set_flag(ADD_SUB_FLAG, true);
+    self.set_flag(HALF_CARRY_FLAG, (((a & 0xf) - (b & 0xf) - c) & 0x10) != 0); // ???
+    self.set_flag(CARRY_FLAG, (result & 0x100) != 0); // ???
+  }
 }
 
 // Opcode implementation.
-// Source: http://www.z80.info/z80code.txt
+// Sources:
+//   * http://www.z80.info/z80code.txt
+//   * http://marc.rawer.de/Gameboy/Docs/GBCPUman.pdf
+//   * http://www.zilog.com/docs/z80/um0080.pdf
 impl<M: mem::Mem> Decoder<()> for Cpu<M> {
   //
   // Misc/control
@@ -616,43 +653,56 @@ impl<M: mem::Mem> Decoder<()> for Cpu<M> {
   //
 
   fn adc(&mut self, src: Addr8) {
-    // TODO: Flags
-    self.regs.a += src.load(self);
-    if (self.regs.f & CARRY_FLAG) != 0 {
-      self.regs.a += 1;
-    }
+    let b = src.load(self);
+    self.add_(self.regs.a, b, (self.regs.f >> CARRY_OFFSET) & 1);
   }
 
   fn add8(&mut self, src: Addr8) {
-    // TODO: Flags
-    self.regs.a += src.load(self);
+    let b = src.load(self);
+    self.add_(self.regs.a, b, 0);
   }
 
   fn add16(&mut self, dst: Addr16, src: Addr16) {
-    // TODO: Flags
-    let op1 = dst.load(self);
-    let op2 = src.load(self);
-    dst.store(self, op1 + op2);
+    let op1 = dst.load(self) as u32;
+    let op2 = src.load(self) as u32;
+    let result = op1 + op2;
+    dst.store(self, result as u16);
+    self.set_flag(ADD_SUB_FLAG, false);
+    self.set_flag(HALF_CARRY_FLAG, (((op1 & 0xf00) + (op2 & 0xf00)) & 0x1000) != 0); // ???
+    self.set_flag(CARRY_FLAG, (result & 0x10000) != 0);
   }
 
+  // TODO
+  //fn add_sp(&mut self, rel: i8) {
+  //  self.regs.sp = (self.regs.sp as i16 + rel as i16) as u16;
+  //}
+
   fn and(&mut self, src: Addr8) {
-    // TODO: Flags
     self.regs.a &= src.load(self);
+    self.set_flag(ZERO_FLAG, self.regs.a == 0);
+    self.set_flag(ADD_SUB_FLAG, false);
+    self.set_flag(HALF_CARRY_FLAG, true); // Yes, this is correct
+    self.set_flag(CARRY_FLAG, false);
   }
 
   fn ccf(&mut self) {
-    // TODO: Flags
     self.regs.f ^= CARRY_FLAG;
+    self.set_flag(ADD_SUB_FLAG, false);
+    self.set_flag(HALF_CARRY_FLAG, false);
   }
 
   fn cp(&mut self, src: Addr8) {
-    // TODO: Flags
-    self.regs.a - src.load(self); // Senseless without flags, but well...
+    // TODO: Optimize
+    let a = self.regs.a;
+    let b = src.load(self);
+    self.sub_(a, b, 0);
+    self.regs.a = a;
   }
 
   fn cpl(&mut self) {
-    // TODO: Flags
     self.regs.a = !self.regs.a;
+    self.set_flag(ADD_SUB_FLAG, true);
+    self.set_flag(HALF_CARRY_FLAG, true);
   }
 
   fn daa(&mut self) {
@@ -660,9 +710,12 @@ impl<M: mem::Mem> Decoder<()> for Cpu<M> {
   }
 
   fn dec8(&mut self, dst: Addr8) {
-    // TODO: Flags
-    let val = dst.load(self);
-    dst.store(self, val - 1);
+    let result = dst.load(self) - 1;
+    dst.store(self, result);
+    self.set_flag(ZERO_FLAG, result == 0);
+    self.set_flag(ADD_SUB_FLAG, true);
+    self.set_flag(HALF_CARRY_FLAG, result == 0x0f); // Only way for borrow from bit 4
+    // Note: carry flag is not affected
   }
 
   fn dec16(&mut self, dst: Addr16) {
@@ -671,9 +724,12 @@ impl<M: mem::Mem> Decoder<()> for Cpu<M> {
   }
 
   fn inc8(&mut self, dst: Addr8) {
-    // TODO: Flags
-    let val = dst.load(self);
-    dst.store(self, val + 1);
+    let result = dst.load(self) + 1;
+    dst.store(self, result);
+    self.set_flag(ZERO_FLAG, result == 0);
+    self.set_flag(ADD_SUB_FLAG, false);
+    self.set_flag(HALF_CARRY_FLAG, result == 0x10); // Only way for carry from bit 3
+    // Note: carry flag not affected
   }
 
   fn inc16(&mut self, dst: Addr16) {
@@ -682,31 +738,35 @@ impl<M: mem::Mem> Decoder<()> for Cpu<M> {
   }
 
   fn or(&mut self, src: Addr8) {
-    // TODO: Flags
     self.regs.a |= src.load(self);
+    self.set_flag(ZERO_FLAG, self.regs.a == 0);
+    self.set_flag(ADD_SUB_FLAG, false);
+    self.set_flag(HALF_CARRY_FLAG, false);
+    self.set_flag(CARRY_FLAG, false);
   }
 
   fn sbc(&mut self, src: Addr8) {
-    // TODO: Flags
-    self.regs.a -= src.load(self);
-    if (self.regs.f & CARRY_FLAG) != 0 {
-      self.regs.a -= 1;
-    }
+    let b = src.load(self);
+    self.sub_(self.regs.a, b, (self.regs.f >> CARRY_OFFSET) & 1);
   }
 
   fn scf(&mut self) {
-    // TODO: Flags
-    self.regs.f |= CARRY_FLAG;
+    self.set_flag(ADD_SUB_FLAG, false);
+    self.set_flag(HALF_CARRY_FLAG, false);
+    self.set_flag(CARRY_FLAG, true);
   }
 
   fn sub(&mut self, src: Addr8) {
-    // TODO: Flags
-    self.regs.a -= src.load(self);
+    let b = src.load(self);
+    self.sub_(self.regs.a, b, 0);
   }
 
   fn xor(&mut self, src: Addr8) {
-    // TODO: Flags
     self.regs.a ^= src.load(self);
+    self.set_flag(ZERO_FLAG, self.regs.a == 0);
+    self.set_flag(ADD_SUB_FLAG, false);
+    self.set_flag(HALF_CARRY_FLAG, false);
+    self.set_flag(CARRY_FLAG, false);
   }
 
   //
@@ -714,7 +774,10 @@ impl<M: mem::Mem> Decoder<()> for Cpu<M> {
   //
 
   fn bit(&mut self, bit: u8, src: Addr8) {
-    fail!("instruction not implemented: bit");
+    let val = src.load(self);
+    self.set_flag(ZERO_FLAG, (val & (1 << bit)) == 0);
+    self.set_flag(ADD_SUB_FLAG, false);
+    self.set_flag(HALF_CARRY_FLAG, true);
   }
 
   fn res(&mut self, bit: u8, dst: Addr8) {
@@ -723,9 +786,13 @@ impl<M: mem::Mem> Decoder<()> for Cpu<M> {
   }
 
   fn rl(&mut self, dst: Addr8) {
-    // TODO: Flags
     let val = dst.load(self);
-    dst.store(self, (val << 1) | ((self.regs.f & CARRY_FLAG) >> CARRY_OFFSET));
+    let result = (val << 1) | ((self.regs.f & CARRY_FLAG) >> CARRY_OFFSET);
+    dst.store(self, result);
+    self.set_flag(ZERO_FLAG, result == 0);
+    self.set_flag(ADD_SUB_FLAG, false);
+    self.set_flag(HALF_CARRY_FLAG, false);
+    self.set_flag(CARRY_FLAG, (val & 0x80) != 0);
   }
 
   fn rla(&mut self) {
@@ -733,32 +800,43 @@ impl<M: mem::Mem> Decoder<()> for Cpu<M> {
   }
 
   fn rlc(&mut self, dst: Addr8) {
-    // TODO: Flags
     let val = dst.load(self);
     dst.store(self, (val << 1) | ((val & 0x80) >> 7));
+    self.set_flag(ZERO_FLAG, val == 0); // zero iff zero before
+    self.set_flag(HALF_CARRY_FLAG, false);
+    self.set_flag(CARRY_FLAG, (val & 0x80) != 0);
   }
 
   fn rlca(&mut self) {
+    // TODO: Zilog Z80 manual says RLCA does not affect zero flag, but RLC does
     self.rlc(Reg8(A));
   }
 
   fn rr(&mut self, dst: Addr8) {
-    // TODO: Flags
     let val = dst.load(self);
-    dst.store(self, (val >> 1) | (((self.regs.f & CARRY_FLAG) >> CARRY_OFFSET) << 7));
+    let result = (val >> 1) | ((self.regs.f & CARRY_FLAG) << (7 - CARRY_OFFSET));
+    dst.store(self, result);
+    self.set_flag(ZERO_FLAG, result == 0);
+    self.set_flag(ADD_SUB_FLAG, false);
+    self.set_flag(HALF_CARRY_FLAG, false);
+    self.set_flag(CARRY_FLAG, (val & 0x80) != 0);
   }
 
   fn rra(&mut self) {
+    // TODO: Zilog Z80 manual says RRA does not affect zero flag, but RR does
     self.rr(Reg8(A));
   }
 
   fn rrc(&mut self, dst: Addr8) {
-    // TODO: Flags
     let val = dst.load(self);
     dst.store(self, (val >> 1) | ((val & 0x01) << 7));
+    self.set_flag(ZERO_FLAG, val == 0); // zero iff zero before
+    self.set_flag(HALF_CARRY_FLAG, false);
+    self.set_flag(CARRY_FLAG, (val & 0x01) != 0);
   }
 
   fn rrca(&mut self) {
+    // TODO: Zilog Z80 manual says RRCA does not affect zero flag, but RRC does
     self.rrc(Reg8(A));
   }
 
@@ -768,27 +846,42 @@ impl<M: mem::Mem> Decoder<()> for Cpu<M> {
   }
 
   fn sla(&mut self, dst: Addr8) {
-    // TODO: Flags
     let val = dst.load(self);
-    dst.store(self, val << 1);
+    let result = val << 1;
+    dst.store(self, result);
+    self.set_flag(ZERO_FLAG, result == 0);
+    self.set_flag(ADD_SUB_FLAG, false);
+    self.set_flag(HALF_CARRY_FLAG, false);
+    self.set_flag(CARRY_FLAG, (val & 0x80) != 0);
   }
 
   fn sra(&mut self, dst: Addr8) {
-    // TODO: Flags
     let val = dst.load(self);
-    dst.store(self, (val & 0x80) | (val >> 1));
+    let result = (val & 0x80) | (val >> 1);
+    dst.store(self, result);
+    self.set_flag(ZERO_FLAG, result == 0);
+    self.set_flag(ADD_SUB_FLAG, false);
+    self.set_flag(HALF_CARRY_FLAG, false);
+    self.set_flag(CARRY_FLAG, (val & 0x01) != 0);
   }
 
   fn srl(&mut self, dst: Addr8) {
-    // TODO: Flags
     let val = dst.load(self);
-    dst.store(self, val >> 1);
+    let result = val >> 1;
+    dst.store(self, result);
+    self.set_flag(ZERO_FLAG, result == 0);
+    self.set_flag(ADD_SUB_FLAG, false);
+    self.set_flag(HALF_CARRY_FLAG, false);
+    self.set_flag(CARRY_FLAG, (val & 0x01) != 0);
   }
 
   fn swap(&mut self, dst: Addr8) {
-    // TODO: Flags
     let val = dst.load(self);
     dst.store(self, (val >> 4) | (val << 4));
+    self.set_flag(ZERO_FLAG, val == 0); // zero iff zero before
+    self.set_flag(ADD_SUB_FLAG, false);
+    self.set_flag(HALF_CARRY_FLAG, false);
+    self.set_flag(CARRY_FLAG, false);
   }
 
   // Undefined/illegal
