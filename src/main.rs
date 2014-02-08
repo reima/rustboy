@@ -1,39 +1,40 @@
 mod cartridge;
 mod cpu;
 mod disasm;
+mod interrupt;
 mod mem;
+mod ram;
+mod serial;
+mod sound;
+mod timer;
+mod video;
 
-struct WorkRam {
-  priv data: [u8, ..0x2000]
-}
 
-impl WorkRam {
-  fn new() -> WorkRam {
-    WorkRam { data: [0u8, ..0x2000] }
-  }
+//
+// Memory Map
+//
 
-  fn internal_addr(self, addr: u16) -> u16 {
-    match addr {
-      0xc000..0xdfff => addr - 0xc000,
-      0xe000..0xfdff => addr - 0xe000, // mirror
-      _ => fail!("invalid WRAM address: 0x{:04X}", addr),
-    }
-  }
-}
-
-impl mem::Mem for WorkRam {
+struct Dummy;
+impl mem::Mem for Dummy {
   fn loadb(&mut self, addr: u16) -> u8 {
-    self.data[self.internal_addr(addr)]
+    warn!("load in unmapped memory at 0x{:04X}", addr);
+    0xff
   }
 
   fn storeb(&mut self, addr: u16, val: u8) {
-    self.data[self.internal_addr(addr)] = val
+    warn!("store in unmapped memory at 0x{:04X}", addr);
   }
 }
 
 struct MemMap {
   cart: ~cartridge::Cartridge,
-  wram: ~WorkRam,
+  wram: ram::WorkRam,
+  timer: timer::Timer,
+  intr: interrupt::InterruptCtrl,
+  sound: sound::Sound,
+  video: video::Video,
+  serial: serial::SerialIO,
+  dummy: Dummy,
 }
 
 impl MemMap {
@@ -41,17 +42,20 @@ impl MemMap {
     match addr {
       0x0000..0x7fff | // ROM banks
       0xa000..0xbfff   // External RAM
-                     => &mut *self.cart as &mut mem::Mem,
-      // 0x8000..0x9fff | // VRAM
-      // 0xfe00..0xfe9f   // OAM
-      //                => &mut *self.video as &mut mem::Mem,
-       0xc000..0xfdff   // WRAM banks (including mirror 0xe000-0xfdff)
-                      => &mut *self.wram as &mut mem::Mem,
-      // 0xff00..0xff7f | // I/O registers (includes Video, Sound, Joypad...)
-      // 0xffff           // Interrupt enable register
-      //                => &mut *self.ioreg as &mut mem::Mem,
-      // 0xff80..0xfffe => &mut *self.hram as &mut mem::Mem,
-      _ => fail!("unmapped memory at 0x{:04X}", addr),
+                      => &mut *self.cart as &mut mem::Mem,
+      0x8000..0x9fff | // VRAM
+      0xfe00..0xfe9f | // OAM
+      0xff40..0xff4b   // Video I/O
+                      => &mut self.video as &mut mem::Mem,
+      0xc000..0xfdff | // WRAM (including echo area 0xe000-0xfdff)
+      0xff80..0xfffe   // HRAM
+                      => &mut self.wram as &mut mem::Mem,
+      0xff01..0xff02  => &mut self.serial as &mut mem::Mem,
+      0xff04..0xff07  => &mut self.timer as &mut mem::Mem,
+      0xff0f | 0xffff => &mut self.intr as &mut mem::Mem,
+      0xff10..0xff3f  => &mut self.sound as &mut mem::Mem,
+      _ => &mut self.dummy as &mut mem::Mem,
+      //_ => fail!("unmapped memory at 0x{:04X}", addr),
     }
   }
 }
@@ -75,23 +79,35 @@ fn main() {
 
   let cart = ~cartridge::Cartridge::from_path(&Path::new(args[1]));
   println!("Name: {:s}", cart.title);
+  println!("Type: {:u}", cart.cartridge_type);
 
-  let memmap = MemMap { cart: cart, wram: ~WorkRam::new() };
+  let memmap = MemMap {
+    cart: cart,
+    wram: ram::WorkRam::new(),
+    timer: timer::Timer::new(),
+    intr: interrupt::InterruptCtrl::new(),
+    sound: sound::Sound,
+    video: video::Video,
+    serial: serial::SerialIO::new(),
+    dummy: Dummy,
+  };
   let mut cpu = cpu::Cpu::new(memmap);
 
   cpu.regs.pc = 0x100;
   loop {
-    print!("AF={:02X}{:02X} ", cpu.regs.a, cpu.regs.f);
-    print!("BC={:02X}{:02X} ", cpu.regs.b, cpu.regs.c);
-    print!("DE={:02X}{:02X} ", cpu.regs.d, cpu.regs.e);
-    print!("HL={:02X}{:02X} ", cpu.regs.h, cpu.regs.l);
-    print!("SP={:04X} ", cpu.regs.sp);
-    print!("PC={:04X} ", cpu.regs.pc);
-    {
+    if log_enabled!(std::logging::DEBUG) {
+      debug!("AF={:02X}{:02X} BC={:02X}{:02X} DE={:02X}{:02X} HL={:02X}{:02X} SP={:04X} PC={:04X} CY={:u}",
+             cpu.regs.a, cpu.regs.f,
+             cpu.regs.b, cpu.regs.c,
+             cpu.regs.d, cpu.regs.e,
+             cpu.regs.h, cpu.regs.l,
+             cpu.regs.sp,
+             cpu.regs.pc,
+             cpu.cycles);
       let mut d = disasm::Disasm { mem: &mut cpu.mem, pc: cpu.regs.pc };
-      println(cpu::decode(&mut d));
+      debug!("{:s}", cpu::decode(&mut d));
     }
-    cpu.step();
+    let cycles = cpu.step();
+    cpu.mem.timer.tick(cycles);
   }
 }
-

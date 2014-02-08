@@ -29,6 +29,10 @@ impl Cartridge {
     let rom_size = header[0x48];
     let ram_size = header[0x49];
 
+    if cartridge_type != 0x00 {
+      fail!("unsupported cartridge type: 0x{:02X}", cartridge_type)
+    }
+
     let rom_size_bytes = 1 << (15 + rom_size);
     let mut rom = vec::from_elem(rom_size_bytes, 0u8);
     file.seek(0, io::SeekSet);
@@ -50,6 +54,6 @@ impl mem::Mem for Cartridge {
   }
 
   fn storeb(&mut self, addr: u16, val: u8) {
-    self.rom.storeb(addr, val)
+    info!("store 0x{:02X} in cartridge ROM at 0x{:04X}", val, addr)
   }
 }

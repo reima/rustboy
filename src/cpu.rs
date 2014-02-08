@@ -14,6 +14,8 @@ static HALF_CARRY_FLAG:   u8 = 1 << HALF_CARRY_OFFSET;
 static ADD_SUB_FLAG:      u8 = 1 << ADD_SUB_OFFSET;
 static ZERO_FLAG:         u8 = 1 << ZERO_OFFSET;
 
+static CYCLES_PER_SEC:    u64 = 4194304; // 4.194304 MHz
+
 
 //
 // Registers
@@ -115,6 +117,20 @@ pub enum Addr8 {
 }
 
 impl Addr8 {
+  fn cycles(&self) -> u8 {
+    // Every (byte) memory access costs 4 cycles
+    match *self {
+      Reg8(_)           => 0, // register access is "free"
+      Imm8(_) |
+      Ind8(_) |
+      Reg8Ind8(_)       => 4,  // one memory access
+      Reg16Ind8(_) |
+      Reg16Ind8Inc(_) |
+      Reg16Ind8Dec(_)   => 8,  // two memory accesses
+      Imm16Ind8(_)      => 12, // three memory accesses
+    }
+  }
+
   fn load<M: mem::Mem>(&self, cpu: &mut Cpu<M>) -> u8 {
     match *self {
       Imm8(val)       => val,
@@ -173,6 +189,16 @@ pub enum Addr16 {
 }
 
 impl Addr16 {
+  fn cycles(&self) -> u8 {
+    // Every (byte) memory access costs 4 cycles
+    match *self {
+      Reg16(_)      => 0,  // register access is "free"
+      Imm16(_) |
+      Reg16Ind16(_) => 8,  // two memory accesses
+      Ind16(_)      => 16, // four memory accesses
+    }
+  }
+
   fn load<M: mem::Mem>(&self, cpu: &mut Cpu<M>) -> u16 {
     match *self {
       Imm16(val)    => val,
@@ -234,6 +260,7 @@ pub trait Decoder<R> {
   fn ld8 (&mut self, dst: Addr8,  src: Addr8)  -> R;
   fn ld16(&mut self, dst: Addr16, src: Addr16) -> R;
   fn ldh (&mut self, dst: Addr8,  src: Addr8)  -> R;
+  fn ldhl(&mut self, rel: i8)                  -> R;
   fn pop (&mut self, dst: Addr16)              -> R;
   fn push(&mut self, src: Addr16)              -> R;
 
@@ -274,7 +301,7 @@ pub trait Decoder<R> {
   fn swap(&mut self, dst: Addr8)          -> R;
 
   // Undefined/illegal
-  fn undef(&mut self) -> R;
+  fn undef(&mut self, opcode: u8) -> R;
 }
 
 // Several instructions use a 3 bit part of the opcode to encode common
@@ -305,8 +332,7 @@ pub fn decode<R, D: Decoder<R>>(d: &mut D) -> R {
   match opcode {
     // 0x00
     0x00 => d.nop(),
-    0x01 => { let imm = fetchw();
-            d.ld16(Reg16(BC), Imm16(imm)) }
+    0x01 => { let imm = fetchw(); d.ld16(Reg16(BC), Imm16(imm)) }
     0x02 => d.ld8(Reg16Ind8(BC), Reg8(A)),
     0x03 => d.inc16(Reg16(BC)),
     0x04 => d.inc8(Reg8(B)),
@@ -489,7 +515,7 @@ pub fn decode<R, D: Decoder<R>>(d: &mut D) -> R {
     0xf6 => { let imm = d.fetch(); d.or(Imm8(imm)) }
     0xf7 => d.rst(0x30),
 
-    /*0xf8 => d.ld(/*...*/),*/ // TODO
+    0xf8 => { let imm = d.fetch(); d.ldhl(imm as i8) }
     0xf9 => d.ld16(Reg16(SP), Reg16(HL)),
     0xfa => { let ind = fetchw(); d.ld8(Reg8(A), Imm16Ind8(ind)) }
     0xfb => d.ei(),
@@ -498,7 +524,7 @@ pub fn decode<R, D: Decoder<R>>(d: &mut D) -> R {
     0xfe => { let imm = d.fetch(); d.cp(Imm8(imm)) }
     0xff => d.rst(0x38),
 
-    _    => d.undef()
+    _    => d.undef(opcode)
   }
 }
 
@@ -509,6 +535,7 @@ pub fn decode<R, D: Decoder<R>>(d: &mut D) -> R {
 pub struct Cpu<M> {
   regs: Regs,
   ime: bool,
+  cycles: u64,
   mem: M,
 }
 
@@ -517,12 +544,15 @@ impl<M: mem::Mem> Cpu<M> {
     Cpu {
       regs: Regs::new(),
       ime: false, // TODO: Are interrupts enabled at boot?
+      cycles: 0u64,
       mem: mem,
     }
   }
 
-  pub fn step(&mut self) {
-    decode(self)
+  pub fn step(&mut self) -> u8 {
+    let elapsed = decode(self);
+    self.cycles += elapsed as u64;
+    elapsed
   }
 
   // Flags helpers
@@ -561,11 +591,14 @@ impl<M: mem::Mem> Cpu<M> {
 }
 
 // Opcode implementation.
+//
+// Returns number of elapsed cyles.
+//
 // Sources:
 //   * http://www.z80.info/z80code.txt
 //   * http://marc.rawer.de/Gameboy/Docs/GBCPUman.pdf
 //   * http://www.zilog.com/docs/z80/um0080.pdf
-impl<M: mem::Mem> Decoder<()> for Cpu<M> {
+impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
   fn fetch(&mut self) -> u8 {
     let result = self.mem.loadb(self.regs.pc);
     self.regs.pc += 1;
@@ -576,99 +609,131 @@ impl<M: mem::Mem> Decoder<()> for Cpu<M> {
   // Misc/control
   //
 
-  fn di(&mut self) {
-    self.ime = false
+  fn di(&mut self) -> u8 {
+    self.ime = false;
+    4
   }
 
-  fn ei(&mut self) {
-    self.ime = true
+  fn ei(&mut self) -> u8{
+    self.ime = true;
+    4
   }
 
-  fn halt(&mut self)          { fail!("instruction not implemented: halt") }
-  fn nop (&mut self)          { }
-  fn stop(&mut self, val: u8) { fail!("instruction not implemented: stop") }
+  fn halt(&mut self) -> u8 {
+    fail!("instruction not implemented: halt")
+  }
+
+  fn nop(&mut self) -> u8 {
+    4
+  }
+
+  fn stop(&mut self, val: u8) -> u8 {
+    //fail!("instruction not implemented: stop")
+    4
+  }
 
   //
   // Jump/call
   //
 
-  fn call(&mut self, cond: Cond, addr: Addr16) {
+  fn call(&mut self, cond: Cond, addr: Addr16) -> u8 {
     if cond.eval(self) {
       self.push(Reg16(PC));
       self.ld16(Reg16(PC), addr);
     }
+    12
   }
 
-  fn jp(&mut self, cond: Cond, addr: Addr16) {
+  fn jp(&mut self, cond: Cond, addr: Addr16) -> u8 {
     if cond.eval(self) {
       self.ld16(Reg16(PC), addr);
     }
+    4 + addr.cycles()
   }
 
-  fn jr(&mut self, cond: Cond, rel: i8) {
+  fn jr(&mut self, cond: Cond, rel: i8) -> u8 {
     if cond.eval(self) {
       self.ld16(Reg16(PC), Imm16((self.regs.pc as i16 + rel as i16) as u16));
     }
+    8
   }
 
-  fn ret(&mut self, cond: Cond) {
+  fn ret(&mut self, cond: Cond) -> u8 {
     if cond.eval(self) {
       self.pop(Reg16(PC));
     }
+    8
   }
 
-  fn reti(&mut self) {
+  fn reti(&mut self) -> u8 {
     // TODO: Tell someone an interrupt got handled?
     self.pop(Reg16(PC));
+    self.ei();
+    8
   }
 
-  fn rst(&mut self, addr: u8) {
+  fn rst(&mut self, addr: u8) -> u8 {
     self.call(CondNone, Imm16(addr as u16));
+    32
   }
 
   //
   // Load/store/move
   //
 
-  fn ld8(&mut self, dst: Addr8,  src: Addr8) {
+  fn ld8(&mut self, dst: Addr8,  src: Addr8) -> u8 {
     let val = src.load(self);
     dst.store(self, val);
+    4 + dst.cycles() + src.cycles()
   }
 
-  fn ld16(&mut self, dst: Addr16, src: Addr16) {
+  fn ld16(&mut self, dst: Addr16, src: Addr16) -> u8 {
     let val = src.load(self);
     dst.store(self, val);
+    4 + dst.cycles() + src.cycles()
+    // TODO: LD SP, HL takes 8 cycles
   }
 
-  fn ldh (&mut self, dst: Addr8, src: Addr8) {
+  fn ldh(&mut self, dst: Addr8, src: Addr8) -> u8 {
     self.ld8(dst, src);
+    4 + dst.cycles() + src.cycles()
   }
 
-  fn pop(&mut self, dst: Addr16) {
+  fn ldhl(&mut self, rel: i8) -> u8 {
+    self.ld16(Reg16(HL), Ind16((self.regs.sp as i16 + rel as i16) as u16));
+    // TODO: Flags
+    12
+  }
+
+  fn pop(&mut self, dst: Addr16) -> u8 {
     self.ld16(dst, Reg16Ind16(SP));
     self.regs.sp += 2;
+    12
   }
 
-  fn push(&mut self, src: Addr16) {
+  fn push(&mut self, src: Addr16) -> u8 {
     self.regs.sp -= 2;
     self.ld16(Reg16Ind16(SP), src);
+    16
   }
 
   //
   // Arithmetic/logic
   //
 
-  fn adc(&mut self, src: Addr8) {
+  fn adc(&mut self, src: Addr8) -> u8 {
     let b = src.load(self);
     self.add_(self.regs.a, b, (self.regs.f >> CARRY_OFFSET) & 1);
+    4 + src.cycles()
   }
 
-  fn add8(&mut self, src: Addr8) {
+  fn add8(&mut self, src: Addr8) -> u8 {
     let b = src.load(self);
     self.add_(self.regs.a, b, 0);
+    4 + src.cycles()
   }
 
-  fn add16(&mut self, dst: Addr16, src: Addr16) {
+  fn add16(&mut self, dst: Addr16, src: Addr16) -> u8 {
     let op1 = dst.load(self) as u32;
     let op2 = src.load(self) as u32;
     let result = op1 + op2;
@@ -676,122 +741,138 @@ impl<M: mem::Mem> Decoder<()> for Cpu<M> {
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, (((op1 & 0xf00) + (op2 & 0xf00)) & 0x1000) != 0); // ???
     self.set_flag(CARRY_FLAG, (result & 0x10000) != 0);
+    8
   }
 
   // TODO
-  //fn add_sp(&mut self, rel: i8) {
+  //fn add_sp(&mut self, rel: i8) -> u8 {
   //  self.regs.sp = (self.regs.sp as i16 + rel as i16) as u16;
   //}
 
-  fn and(&mut self, src: Addr8) {
+  fn and(&mut self, src: Addr8) -> u8 {
     self.regs.a &= src.load(self);
     self.set_flag(ZERO_FLAG, self.regs.a == 0);
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, true); // Yes, this is correct
     self.set_flag(CARRY_FLAG, false);
+    4 + src.cycles()
   }
 
-  fn ccf(&mut self) {
+  fn ccf(&mut self) -> u8 {
     self.regs.f ^= CARRY_FLAG;
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, false);
+    4
   }
 
-  fn cp(&mut self, src: Addr8) {
+  fn cp(&mut self, src: Addr8) -> u8 {
     // TODO: Optimize
     let a = self.regs.a;
     let b = src.load(self);
     self.sub_(a, b, 0);
     self.regs.a = a;
+    4 + src.cycles()
   }
 
-  fn cpl(&mut self) {
+  fn cpl(&mut self) -> u8 {
     self.regs.a = !self.regs.a;
     self.set_flag(ADD_SUB_FLAG, true);
     self.set_flag(HALF_CARRY_FLAG, true);
+    4
   }
 
-  fn daa(&mut self) {
+  fn daa(&mut self) -> u8 {
     fail!("instruction not implemented: daa");
   }
 
-  fn dec8(&mut self, dst: Addr8) {
+  fn dec8(&mut self, dst: Addr8) -> u8 {
     let result = dst.load(self) - 1;
     dst.store(self, result);
     self.set_flag(ZERO_FLAG, result == 0);
     self.set_flag(ADD_SUB_FLAG, true);
     self.set_flag(HALF_CARRY_FLAG, result == 0x0f); // Only way for borrow from bit 4
     // Note: carry flag is not affected
+    4 + 2 * dst.cycles()
   }
 
-  fn dec16(&mut self, dst: Addr16) {
+  fn dec16(&mut self, dst: Addr16) -> u8 {
     let val = dst.load(self);
     dst.store(self, val - 1);
+    8
   }
 
-  fn inc8(&mut self, dst: Addr8) {
+  fn inc8(&mut self, dst: Addr8) -> u8 {
     let result = dst.load(self) + 1;
     dst.store(self, result);
     self.set_flag(ZERO_FLAG, result == 0);
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, result == 0x10); // Only way for carry from bit 3
     // Note: carry flag not affected
+    4 + 2 * dst.cycles()
   }
 
-  fn inc16(&mut self, dst: Addr16) {
+  fn inc16(&mut self, dst: Addr16) -> u8 {
     let val = dst.load(self);
     dst.store(self, val + 1);
+    8
   }
 
-  fn or(&mut self, src: Addr8) {
+  fn or(&mut self, src: Addr8) -> u8 {
     self.regs.a |= src.load(self);
     self.set_flag(ZERO_FLAG, self.regs.a == 0);
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, false);
     self.set_flag(CARRY_FLAG, false);
+    4 + src.cycles()
   }
 
-  fn sbc(&mut self, src: Addr8) {
+  fn sbc(&mut self, src: Addr8) -> u8 {
     let b = src.load(self);
     self.sub_(self.regs.a, b, (self.regs.f >> CARRY_OFFSET) & 1);
+    4 + src.cycles()
   }
 
-  fn scf(&mut self) {
+  fn scf(&mut self) -> u8 {
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, false);
     self.set_flag(CARRY_FLAG, true);
+    4
   }
 
-  fn sub(&mut self, src: Addr8) {
+  fn sub(&mut self, src: Addr8) -> u8 {
     let b = src.load(self);
     self.sub_(self.regs.a, b, 0);
+    4 + src.cycles()
   }
 
-  fn xor(&mut self, src: Addr8) {
+  fn xor(&mut self, src: Addr8) -> u8 {
     self.regs.a ^= src.load(self);
     self.set_flag(ZERO_FLAG, self.regs.a == 0);
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, false);
     self.set_flag(CARRY_FLAG, false);
+    4 + src.cycles()
   }
 
   //
   // Rotation/shift/bit
   //
 
-  fn bit(&mut self, bit: u8, src: Addr8) {
+  fn bit(&mut self, bit: u8, src: Addr8) -> u8 {
     let val = src.load(self);
     self.set_flag(ZERO_FLAG, (val & (1 << bit)) == 0);
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, true);
+    8 + src.cycles() // TODO: BIT b, (HL) takes 16 cycles
   }
 
-  fn res(&mut self, bit: u8, dst: Addr8) {
+  fn res(&mut self, bit: u8, dst: Addr8) -> u8 {
     let val = dst.load(self);
     dst.store(self, val & !(1 << bit));
+    8 + 2 * dst.cycles()
   }
 
-  fn rl(&mut self, dst: Addr8) {
+  fn rl(&mut self, dst: Addr8) -> u8 {
     let val = dst.load(self);
     let result = (val << 1) | ((self.regs.f & CARRY_FLAG) >> CARRY_OFFSET);
     dst.store(self, result);
@@ -799,26 +880,30 @@ impl<M: mem::Mem> Decoder<()> for Cpu<M> {
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, false);
     self.set_flag(CARRY_FLAG, (val & 0x80) != 0);
+    8 + 2 * dst.cycles()
   }
 
-  fn rla(&mut self) {
+  fn rla(&mut self) -> u8 {
     self.rl(Reg8(A));
+    4
   }
 
-  fn rlc(&mut self, dst: Addr8) {
+  fn rlc(&mut self, dst: Addr8) -> u8 {
     let val = dst.load(self);
     dst.store(self, (val << 1) | ((val & 0x80) >> 7));
     self.set_flag(ZERO_FLAG, val == 0); // zero iff zero before
     self.set_flag(HALF_CARRY_FLAG, false);
     self.set_flag(CARRY_FLAG, (val & 0x80) != 0);
+    8 + 2 * dst.cycles()
   }
 
-  fn rlca(&mut self) {
+  fn rlca(&mut self) -> u8 {
     // TODO: Zilog Z80 manual says RLCA does not affect zero flag, but RLC does
     self.rlc(Reg8(A));
+    4
   }
 
-  fn rr(&mut self, dst: Addr8) {
+  fn rr(&mut self, dst: Addr8) -> u8 {
     let val = dst.load(self);
     let result = (val >> 1) | ((self.regs.f & CARRY_FLAG) << (7 - CARRY_OFFSET));
     dst.store(self, result);
@@ -826,32 +911,37 @@ impl<M: mem::Mem> Decoder<()> for Cpu<M> {
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, false);
     self.set_flag(CARRY_FLAG, (val & 0x80) != 0);
+    8 + 2 * dst.cycles()
   }
 
-  fn rra(&mut self) {
+  fn rra(&mut self) -> u8 {
     // TODO: Zilog Z80 manual says RRA does not affect zero flag, but RR does
     self.rr(Reg8(A));
+    4
   }
 
-  fn rrc(&mut self, dst: Addr8) {
+  fn rrc(&mut self, dst: Addr8) -> u8 {
     let val = dst.load(self);
     dst.store(self, (val >> 1) | ((val & 0x01) << 7));
     self.set_flag(ZERO_FLAG, val == 0); // zero iff zero before
     self.set_flag(HALF_CARRY_FLAG, false);
     self.set_flag(CARRY_FLAG, (val & 0x01) != 0);
+    8 + 2 * dst.cycles()
   }
 
-  fn rrca(&mut self) {
+  fn rrca(&mut self) -> u8 {
     // TODO: Zilog Z80 manual says RRCA does not affect zero flag, but RRC does
     self.rrc(Reg8(A));
+    4
   }
 
-  fn set(&mut self, bit: u8, dst: Addr8) {
+  fn set(&mut self, bit: u8, dst: Addr8) -> u8 {
     let val = dst.load(self);
     dst.store(self, val | (1 << bit));
+    8 + 2 * dst.cycles()
   }
 
-  fn sla(&mut self, dst: Addr8) {
+  fn sla(&mut self, dst: Addr8) -> u8 {
     let val = dst.load(self);
     let result = val << 1;
     dst.store(self, result);
@@ -859,9 +949,10 @@ impl<M: mem::Mem> Decoder<()> for Cpu<M> {
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, false);
     self.set_flag(CARRY_FLAG, (val & 0x80) != 0);
+    8 + 2 * dst.cycles()
   }
 
-  fn sra(&mut self, dst: Addr8) {
+  fn sra(&mut self, dst: Addr8) -> u8 {
     let val = dst.load(self);
     let result = (val & 0x80) | (val >> 1);
     dst.store(self, result);
@@ -869,9 +960,10 @@ impl<M: mem::Mem> Decoder<()> for Cpu<M> {
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, false);
     self.set_flag(CARRY_FLAG, (val & 0x01) != 0);
+    8 + 2 * dst.cycles()
   }
 
-  fn srl(&mut self, dst: Addr8) {
+  fn srl(&mut self, dst: Addr8) -> u8 {
     let val = dst.load(self);
     let result = val >> 1;
     dst.store(self, result);
@@ -879,17 +971,21 @@ impl<M: mem::Mem> Decoder<()> for Cpu<M> {
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, false);
     self.set_flag(CARRY_FLAG, (val & 0x01) != 0);
+    8 + 2 * dst.cycles()
   }
 
-  fn swap(&mut self, dst: Addr8) {
+  fn swap(&mut self, dst: Addr8) -> u8 {
     let val = dst.load(self);
     dst.store(self, (val >> 4) | (val << 4));
     self.set_flag(ZERO_FLAG, val == 0); // zero iff zero before
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, false);
     self.set_flag(CARRY_FLAG, false);
+    8 + 2 * dst.cycles()
   }
 
   // Undefined/illegal
-  fn undef(&mut self) { fail!("illegal instruction") }
+  fn undef(&mut self, opcode: u8) -> u8 {
+    fail!("illegal instruction: {:02X}", opcode)
+  }
 }

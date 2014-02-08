@@ -88,6 +88,7 @@ impl<'a, M: mem::Mem> Decoder<~str> for Disasm<'a, M> {
   fn ld8 (&mut self, dst: Addr8,  src: Addr8)  -> ~str { binary8 ("LD", dst, src) }
   fn ld16(&mut self, dst: Addr16, src: Addr16) -> ~str { binary16("LD", dst, src) }
   fn ldh (&mut self, dst: Addr8,  src: Addr8)  -> ~str { binary8 ("LDH", dst, src) }
+  fn ldhl(&mut self, rel: i8)                  -> ~str { format!("LDHL SP, {:d}", rel) }
 
   fn pop (&mut self, dst: Addr16)              -> ~str { unary16 ("POP", dst) }
   fn push(&mut self, src: Addr16)              -> ~str { unary16 ("PUSH", src) }
@@ -119,7 +120,7 @@ impl<'a, M: mem::Mem> Decoder<~str> for Disasm<'a, M> {
   fn rlc (&mut self, dst: Addr8)          -> ~str { unary8 ("RLC", dst) }
   fn rlca(&mut self)                      -> ~str {        ~"RLCA" }
   fn rr  (&mut self, dst: Addr8)          -> ~str { unary8 ("RR", dst) }
-  fn rra (&mut self)                      -> ~str {        ~"RAA" }
+  fn rra (&mut self)                      -> ~str {        ~"RRA" }
   fn rrc (&mut self, dst: Addr8)          -> ~str { unary8 ("RRC", dst) }
   fn rrca(&mut self)                      -> ~str {        ~"RRCA" }
   fn set (&mut self, bit: u8, dst: Addr8) -> ~str { format!("SET {:u}, {:s}", bit, addr8_to_str(dst)) }
@@ -129,5 +130,5 @@ impl<'a, M: mem::Mem> Decoder<~str> for Disasm<'a, M> {
   fn swap(&mut self, dst: Addr8)          -> ~str { unary8 ("SWAP", dst) }
 
   // Undefined/illegal
-  fn undef(&mut self) -> ~str { ~"undefined opcode" }
+  fn undef(&mut self, opcode: u8) -> ~str { format!("UNDEFINED ${:02X}", opcode) }
 }
