@@ -1,7 +1,11 @@
 use cpu::{Addr8, Addr16, Cond, Decoder};
 use cpu;
+use mem;
 
-pub struct Disasm;
+pub struct Disasm<'a, M> {
+  mem: &'a mut M,
+  pc: u16,
+}
 
 fn addr16_to_str(addr: Addr16) -> ~str {
   match addr {
@@ -58,7 +62,13 @@ fn binary16(mnemonic: &str, addr1: Addr16, addr2: Addr16) -> ~str {
   format!("{:s} {:s}, {:s}", mnemonic, addr16_to_str(addr1), addr16_to_str(addr2))
 }
 
-impl Decoder<~str> for Disasm {
+impl<'a, M: mem::Mem> Decoder<~str> for Disasm<'a, M> {
+  fn fetch(&mut self) -> u8 {
+    let result = self.mem.loadb(self.pc);
+    self.pc += 1;
+    result
+  }
+
   // Misc/control
   fn di  (&mut self)          -> ~str { ~"DI" }
   fn ei  (&mut self)          -> ~str { ~"EI" }
