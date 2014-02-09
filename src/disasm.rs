@@ -69,19 +69,23 @@ impl<'a, M: mem::Mem> Decoder<~str> for Disasm<'a, M> {
   }
 
   // Misc/control
-  fn di  (&mut self)          -> ~str { ~"DI" }
-  fn ei  (&mut self)          -> ~str { ~"EI" }
-  fn halt(&mut self)          -> ~str { ~"HALT" }
   fn nop (&mut self)          -> ~str { ~"NOP" }
+
+  fn ei  (&mut self)          -> ~str { ~"EI" }
+  fn di  (&mut self)          -> ~str { ~"DI" }
+
+  fn halt(&mut self)          -> ~str { ~"HALT" }
   fn stop(&mut self, val: u8) -> ~str { format!("STOP {:u}", val) }
 
   // Jump/call
-  fn call(&mut self, cond: Cond, addr: Addr16) -> ~str { unary16(with_cond("CALL", cond), addr) }
   fn jp  (&mut self, cond: Cond, addr: Addr16) -> ~str { unary16(with_cond("JP",   cond), addr) }
   fn jr  (&mut self, cond: Cond, rel: i8)      -> ~str { format!("{:s} {:d}", with_cond("JR", cond), rel) }
+
+  fn call(&mut self, cond: Cond, addr: Addr16) -> ~str { unary16(with_cond("CALL", cond), addr) }
+  fn rst (&mut self, addr: u8)                 -> ~str { format!("RST ${:02X}", addr) }
+
   fn ret (&mut self, cond: Cond)               -> ~str { format!("RET {:s}", cond_to_str(cond)) }
   fn reti(&mut self)                           -> ~str {        ~"RETI" }
-  fn rst (&mut self, addr: u8)                 -> ~str { format!("RST ${:02X}", addr) }
 
   // Load/store/move
   fn ld8 (&mut self, dst: Addr8,  src: Addr8)  -> ~str { binary8 ("LD", dst, src) }
@@ -89,43 +93,54 @@ impl<'a, M: mem::Mem> Decoder<~str> for Disasm<'a, M> {
   fn ldh (&mut self, dst: Addr8,  src: Addr8)  -> ~str { binary8 ("LDH", dst, src) }
   fn ldhl(&mut self, rel: i8)                  -> ~str { format!("LDHL SP, {:d}", rel) }
 
-  fn pop (&mut self, dst: Addr16)              -> ~str { unary16 ("POP", dst) }
   fn push(&mut self, src: Addr16)              -> ~str { unary16 ("PUSH", src) }
+  fn pop (&mut self, dst: Addr16)              -> ~str { unary16 ("POP", dst) }
 
   // Arithmetic/logic
-  fn adc  (&mut self, src: Addr8)               -> ~str { unary8  ("ADC A,", src) }
   fn add8 (&mut self, src: Addr8)               -> ~str { unary8  ("ADD A,", src) }
   fn add16(&mut self, dst: Addr16, src: Addr16) -> ~str { binary16("ADD", dst, src) }
-  fn and  (&mut self, src: Addr8)               -> ~str { unary8  ("AND", src) }
-  fn ccf  (&mut self)                           -> ~str {         ~"CCF" }
-  fn cp   (&mut self, src: Addr8)               -> ~str { unary8  ("CP", src) }
-  fn cpl  (&mut self)                           -> ~str {         ~"CPL" }
-  fn daa  (&mut self)                           -> ~str {         ~"DAA" }
-  fn dec8 (&mut self, dst: Addr8)               -> ~str { unary8  ("DEC", dst) }
-  fn dec16(&mut self, dst: Addr16)              -> ~str { unary16 ("DEC", dst) }
+  fn adc  (&mut self, src: Addr8)               -> ~str { unary8  ("ADC A,", src) }
+
+  fn sub  (&mut self, src: Addr8)               -> ~str { unary8  ("SUB", src) }
+  fn sbc  (&mut self, src: Addr8)               -> ~str { unary8  ("SBC A,", src) }
+
   fn inc8 (&mut self, dst: Addr8)               -> ~str { unary8  ("INC", dst) }
   fn inc16(&mut self, dst: Addr16)              -> ~str { unary16 ("INC", dst) }
+  fn dec8 (&mut self, dst: Addr8)               -> ~str { unary8  ("DEC", dst) }
+  fn dec16(&mut self, dst: Addr16)              -> ~str { unary16 ("DEC", dst) }
+
+  fn and  (&mut self, src: Addr8)               -> ~str { unary8  ("AND", src) }
   fn or   (&mut self, src: Addr8)               -> ~str { unary8  ("XOR", src) }
-  fn sbc  (&mut self, src: Addr8)               -> ~str { unary8  ("SBC A,", src) }
-  fn scf  (&mut self)                           -> ~str {         ~"SCF" }
-  fn sub  (&mut self, src: Addr8)               -> ~str { unary8  ("SUB", src) }
   fn xor  (&mut self, src: Addr8)               -> ~str { unary8  ("XOR", src) }
 
+  fn cp   (&mut self, src: Addr8)               -> ~str { unary8  ("CP", src) }
+
+  fn cpl  (&mut self)                           -> ~str {         ~"CPL" }
+
+  fn scf  (&mut self)                           -> ~str {         ~"SCF" }
+  fn ccf  (&mut self)                           -> ~str {         ~"CCF" }
+
+  fn daa  (&mut self)                           -> ~str {         ~"DAA" }
+
   // Rotation/shift/bit
-  fn bit (&mut self, bit: u8, src: Addr8) -> ~str { format!("BIT {:u}, {:s}", bit, addr8_to_str(src)) }
-  fn res (&mut self, bit: u8, dst: Addr8) -> ~str { format!("RES {:u}, {:s}", bit, addr8_to_str(dst)) }
-  fn rl  (&mut self, dst: Addr8)          -> ~str { unary8 ("RL", dst) }
-  fn rla (&mut self)                      -> ~str {        ~"RLA" }
-  fn rlc (&mut self, dst: Addr8)          -> ~str { unary8 ("RLC", dst) }
   fn rlca(&mut self)                      -> ~str {        ~"RLCA" }
-  fn rr  (&mut self, dst: Addr8)          -> ~str { unary8 ("RR", dst) }
-  fn rra (&mut self)                      -> ~str {        ~"RRA" }
-  fn rrc (&mut self, dst: Addr8)          -> ~str { unary8 ("RRC", dst) }
+  fn rla (&mut self)                      -> ~str {        ~"RLA" }
   fn rrca(&mut self)                      -> ~str {        ~"RRCA" }
-  fn set (&mut self, bit: u8, dst: Addr8) -> ~str { format!("SET {:u}, {:s}", bit, addr8_to_str(dst)) }
+  fn rra (&mut self)                      -> ~str {        ~"RRA" }
+
+  fn rlc (&mut self, dst: Addr8)          -> ~str { unary8 ("RLC", dst) }
+  fn rl  (&mut self, dst: Addr8)          -> ~str { unary8 ("RL", dst) }
+  fn rrc (&mut self, dst: Addr8)          -> ~str { unary8 ("RRC", dst) }
+  fn rr  (&mut self, dst: Addr8)          -> ~str { unary8 ("RR", dst) }
+
   fn sla (&mut self, dst: Addr8)          -> ~str { unary8 ("SLA", dst) }
   fn sra (&mut self, dst: Addr8)          -> ~str { unary8 ("SRA", dst) }
   fn srl (&mut self, dst: Addr8)          -> ~str { unary8 ("SRL", dst) }
+
+  fn bit (&mut self, bit: u8, src: Addr8) -> ~str { format!("BIT {:u}, {:s}", bit, addr8_to_str(src)) }
+  fn res (&mut self, bit: u8, dst: Addr8) -> ~str { format!("RES {:u}, {:s}", bit, addr8_to_str(dst)) }
+  fn set (&mut self, bit: u8, dst: Addr8) -> ~str { format!("SET {:u}, {:s}", bit, addr8_to_str(dst)) }
+
   fn swap(&mut self, dst: Addr8)          -> ~str { unary8 ("SWAP", dst) }
 
   // Undefined/illegal
