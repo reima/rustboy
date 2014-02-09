@@ -562,6 +562,24 @@ impl<M: mem::Mem> Cpu<M> {
   }
 
   pub fn step(&mut self) -> u8 {
+    // Check for interrupts
+    if self.ime {
+      let enabled_mask = self.mem.loadb(0xffff);
+      let request_mask = self.mem.loadb(0xff0f);
+      let effective = enabled_mask & request_mask;
+       // Get the lowest set bit, which is the IRQ with the highest priority
+      let irq = effective.trailing_zeros();
+      if irq < 5 {
+        // Valid IRQ (0-4)
+        self.push(Reg16(PC));                    // Push PC
+        self.regs.pc = 0x40 + irq as u16 * 0x08; // Jump to ISR
+        self.ime = false;                        // Disable interrupts
+        self.mem.storeb(0xff0f, request_mask & !(1 << irq)); // Clear IRQ flag
+        self.cycles += 20;
+        return 20 // 5 machine cycles, according to GBCPUman.pdf
+      }
+    }
+
     let elapsed = decode(self);
     self.cycles += elapsed as u64;
     elapsed
@@ -865,7 +883,7 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
   }
 
   fn daa(&mut self) -> u8 {
-    fail!("instruction not implemented: daa");
+    fail!("instruction not implemented: ${:04X}  daa", self.regs.pc);
   }
 
   //

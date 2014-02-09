@@ -4,6 +4,14 @@ use mem;
 // Interrupt Controller
 //
 
+pub static IRQ_VBLANK: u8 = 0b00001;
+pub static IRQ_LCD:    u8 = 0b00010;
+pub static IRQ_TIMER:  u8 = 0b00100;
+pub static IRQ_SERIAL: u8 = 0b01000;
+pub static IRQ_JOYPAD: u8 = 0b10000;
+
+static IRQ_MASK: u8 = 0b11111;
+
 pub struct InterruptCtrl {
   flag: u8,
   enable: u8,
@@ -12,6 +20,10 @@ pub struct InterruptCtrl {
 impl InterruptCtrl {
   pub fn new() -> InterruptCtrl {
     InterruptCtrl { flag: 0, enable: 0 } // TODO: Is this the initial state?
+  }
+
+  pub fn irq(&mut self, num: u8) {
+    self.flag |= num & IRQ_MASK;
   }
 }
 

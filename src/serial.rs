@@ -37,7 +37,7 @@ impl mem::Mem for SerialIO {
           // Start transfer
           // TODO: This should be done with 8192 bits per second
           // Debug output
-          print!("{:c}", self.data.to_ascii().to_char());
+          //print!("{:c}", self.data.to_ascii().to_char());
           self.data = 0xff; // No external GameBoy present, receive dummy value
           // Reset transfer flag to indicate transfer has finished
           self.control &= !SERIAL_TRANSFER_FLAG;

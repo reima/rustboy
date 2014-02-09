@@ -1,3 +1,5 @@
+use mem::Mem;
+
 mod cartridge;
 mod cpu;
 mod disasm;
@@ -14,14 +16,14 @@ mod video;
 //
 
 struct Dummy;
-impl mem::Mem for Dummy {
+impl Mem for Dummy {
   fn loadb(&mut self, addr: u16) -> u8 {
-    info!("load in unmapped memory at 0x{:04X}", addr);
+    //debug!("load in unmapped memory at 0x{:04X}", addr);
     0xff
   }
 
   fn storeb(&mut self, addr: u16, val: u8) {
-    info!("store in unmapped memory at 0x{:04X}", addr);
+    //debug!("store in unmapped memory at 0x{:04X}", addr);
   }
 }
 
@@ -37,29 +39,29 @@ struct MemMap {
 }
 
 impl MemMap {
-  fn mem_from_addr<'a>(&'a mut self, addr: u16) -> &'a mut mem::Mem {
+  fn mem_from_addr<'a>(&'a mut self, addr: u16) -> &'a mut Mem {
     match addr {
       0x0000..0x7fff | // ROM banks
       0xa000..0xbfff   // External RAM
-                      => &mut *self.cart as &mut mem::Mem,
+                      => &mut *self.cart as &mut Mem,
       0x8000..0x9fff | // VRAM
       0xfe00..0xfe9f | // OAM
       0xff40..0xff4b   // Video I/O
-                      => &mut self.video as &mut mem::Mem,
+                      => &mut self.video as &mut Mem,
       0xc000..0xfdff | // WRAM (including echo area 0xe000-0xfdff)
       0xff80..0xfffe   // HRAM
-                      => &mut self.wram as &mut mem::Mem,
-      0xff01..0xff02  => &mut self.serial as &mut mem::Mem,
-      0xff04..0xff07  => &mut self.timer as &mut mem::Mem,
-      0xff0f | 0xffff => &mut self.intr as &mut mem::Mem,
-      0xff10..0xff3f  => &mut self.sound as &mut mem::Mem,
-      _ => &mut self.dummy as &mut mem::Mem,
+                      => &mut self.wram as &mut Mem,
+      0xff01..0xff02  => &mut self.serial as &mut Mem,
+      0xff04..0xff07  => &mut self.timer as &mut Mem,
+      0xff0f | 0xffff => &mut self.intr as &mut Mem,
+      0xff10..0xff3f  => &mut self.sound as &mut Mem,
+      _ => &mut self.dummy as &mut Mem,
       //_ => fail!("unmapped memory at 0x{:04X}", addr),
     }
   }
 }
 
-impl mem::Mem for MemMap {
+impl Mem for MemMap {
   fn loadb(&mut self, addr: u16) -> u8 {
     self.mem_from_addr(addr).loadb(addr)
   }
@@ -70,14 +72,14 @@ impl mem::Mem for MemMap {
 }
 
 
-fn disasm<M: mem::Mem>(mem: &mut M, addr: &mut u16) -> ~str {
+fn disasm<M: Mem>(mem: &mut M, addr: &mut u16) -> ~str {
   let mut d = disasm::Disasm { mem: mem, pc: *addr };
   let result = cpu::decode(&mut d);
   *addr = d.pc;
   result
 }
 
-fn disassemble<M: mem::Mem>(mem: &mut M, addr: u16) {
+fn disassemble<M: Mem>(mem: &mut M, addr: u16) {
   let mut pc = addr;
 
   for _ in range(0, 5) {
@@ -89,6 +91,34 @@ fn disassemble<M: mem::Mem>(mem: &mut M, addr: u16) {
       print!(" {:02X}", mem.loadb(a));
     }
     println!("\t{:s}", instr);
+  }
+}
+
+fn print_mem<M: Mem>(mem: &mut M, addr: u16) {
+  println("\t  0  1  2  3  4  5  6  7   8  9  A  B  C  D  E  F");
+
+  let mut base = addr & 0xfff0;
+  let mut start_offset = addr & 0xf;
+
+  for _ in range(0, 4) {
+    print!("${:04X}\t", base);
+    for offset in range(0u16, 16u16) {
+      if offset == 8 {
+        print(" ");
+      }
+      if offset >= start_offset {
+        print!(" {:02X}", mem.loadb(base + offset));
+      } else {
+        print("   ");
+      }
+    }
+    println("");
+    base += 0x10;
+    start_offset = 0;
+
+    if base < addr { // wrap-around
+      break;
+    }
   }
 }
 
@@ -178,6 +208,14 @@ fn main() {
                            cpu.regs.pc,
                            cpu.cycles);
                 },
+                &"m" => { // print memory
+                  if words.len() >= 2 {
+                    match parse_addr(words[1]) {
+                      Some(addr) => print_mem(&mut cpu.mem, addr),
+                      None       => error!("Invalid address: {:s}", words[1]),
+                    }
+                  }
+                },
                 &"d" => { // disasm
                   let mut addr = cpu.regs.pc;
                   if words.len() >= 2 {
@@ -215,7 +253,7 @@ fn main() {
                             breakpoints.sort();
                             println!("Breakpoint ${:04X} added", addr);
                           } else {
-
+                            println!("Breakpoint ${:04X} already exists", addr);
                           }
                         } else {
                           if breakpoints.contains(&addr) {
@@ -242,8 +280,27 @@ fn main() {
       }
     }
 
+    if done {
+      break;
+    }
+
     let cycles = cpu.step();
     cpu.mem.timer.tick(cycles);
-    cpu.mem.video.tick(cycles);
+
+    match cpu.mem.video.tick(cycles) {
+      Some(video::DMA(base)) => {
+        // Do DMA transfer instantaneously
+        let base_addr = base as u16 << 8;
+        for offset in range(0x00u16, 0xa0u16) {
+          let val = cpu.mem.loadb(base_addr + offset);
+          cpu.mem.storeb(0xfe00 + offset, val);
+        }
+      },
+      Some(video::VBlank) => {
+        cpu.mem.intr.irq(interrupt::IRQ_VBLANK);
+      }
+      Some(video::LCD)    => cpu.mem.intr.irq(interrupt::IRQ_LCD),
+      None => (),
+    }
   }
 }
