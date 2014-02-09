@@ -185,7 +185,6 @@ pub enum Addr16 {
   Imm16(u16),
   Ind16(u16),
   Reg16(Reg16),
-  Reg16Ind16(Reg16),
 }
 
 impl Addr16 {
@@ -193,8 +192,7 @@ impl Addr16 {
     // Every (byte) memory access costs 4 cycles
     match *self {
       Reg16(_)      => 0,  // register access is "free"
-      Imm16(_) |
-      Reg16Ind16(_) => 8,  // two memory accesses
+      Imm16(_)      => 8,  // two memory accesses
       Ind16(_)      => 16, // four memory accesses
     }
   }
@@ -204,7 +202,6 @@ impl Addr16 {
       Imm16(val)    => val,
       Ind16(addr)   => cpu.mem.loadw(addr),
       Reg16(r)      => r.load(cpu),
-      Reg16Ind16(r) => { let addr = r.load(cpu); cpu.mem.loadw(addr) }
     }
   }
 
@@ -212,7 +209,6 @@ impl Addr16 {
     match *self {
       Ind16(addr)   => cpu.mem.storew(addr, val),
       Reg16(r)      => r.store(cpu, val),
-      Reg16Ind16(r) => { let addr = r.load(cpu); cpu.mem.storew(addr, val) }
       _ => fail!("invalid addressing mode for 16-bit store")
     }
   }
@@ -497,7 +493,7 @@ pub fn decode<R, D: Decoder<R>>(d: &mut D) -> R {
     0xe7 => d.rst(0x20),
 
     /*0xe8 => d.add16(Reg16(SP), ???),*/ // TODO
-    0xe9 => d.jp(CondNone, Reg16Ind16(HL)),
+    0xe9 => d.jp(CondNone, Reg16(HL)),
     0xea => { let ind = fetchw(); d.ld8(Imm16Ind8(ind), Reg8(A)) }
     /*0xeb => d.nop(),*/
     /*0xec => d.nop(),*/
@@ -706,15 +702,17 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
   }
 
   fn pop(&mut self, dst: Addr16) -> u8 {
-    self.ld16(dst, Reg16Ind16(SP));
+    let val = self.mem.loadw(self.regs.sp);
+    dst.store(self, val);
     self.regs.sp += 2;
-    12
+    12 + dst.cycles()
   }
 
   fn push(&mut self, src: Addr16) -> u8 {
     self.regs.sp -= 2;
-    self.ld16(Reg16Ind16(SP), src);
-    16
+    let val = src.load(self);
+    self.mem.storew(self.regs.sp, val);
+    16 + src.cycles()
   }
 
   //

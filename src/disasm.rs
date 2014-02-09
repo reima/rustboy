@@ -12,7 +12,6 @@ fn addr16_to_str(addr: Addr16) -> ~str {
     cpu::Imm16(val)    => format!("${:04X}", val),
     cpu::Ind16(addr)   => format!("(${:04X})", addr),
     cpu::Reg16(r)      => r.to_str(),
-    cpu::Reg16Ind16(r) => format!("({:s})", r.to_str()),
   }
 }
 
