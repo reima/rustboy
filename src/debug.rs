@@ -2,7 +2,7 @@ use mem::Mem;
 use disasm;
 use cpu;
 use std::num::from_str_radix;
-use std::io::{buffered, signal, stdio};
+use std::io::{buffered, signal, stdio, File};
 
 //
 // Debugger
@@ -67,6 +67,92 @@ fn print_regs<M>(cpu: &cpu::Cpu<M>) {
            cpu.regs.sp,
            cpu.regs.pc,
            cpu.cycles);
+}
+
+fn expand_tile_row(tile: &[u8], palette: u8, row: u8, pixels: &mut [u8]) {
+  for col in range(0u, 8u) {
+    let low_bit  = (tile[2*row]   >> (7 - col)) & 1;
+    let high_bit = (tile[2*row+1] >> (7 - col)) & 1;
+    let value = (high_bit << 1) | low_bit;
+    let color = 3 - ((palette >> (2 * value)) & 0b11);
+    pixels[col] = color;
+  }
+}
+
+fn write_pgm(path: &Path, width: uint, height: uint, data: &[u8]) {
+  let mut output = File::create(path).unwrap();
+  output.write_line("P5");
+  output.write_line(format!("{:u} {:u}", width, height));
+  output.write_line("3");
+  output.write(data);
+}
+
+fn dump_tiles<M: Mem>(m: &mut M) {
+  let mut data = [0u8, ..16*24*8*8];
+
+  for num in range(0u, 384u) {
+    let mut tile = [0u8, ..16];
+    for offset in range(0u, 16u) {
+      tile[offset] = m.loadb(0x8000u16 + num as u16 * 16u16 + offset as u16);
+    }
+    let row = num / 16;
+    let col = num % 16;
+    let pixels = data.mut_slice_from((row * 16 * 8 + col)*8);
+    for row in range(0u, 8u) {
+      expand_tile_row(tile, 0xe4, row as u8, pixels.mut_slice_from(16*8*row));
+    }
+  }
+
+  write_pgm(&Path::new("tiles.pgm"), 16*8, 24*8, data);
+}
+
+fn dump_bg<M: Mem>(m: &mut M) {
+  let mut tile_base = 0x8800;
+  let mut tile_bias = 127u8; // ???
+  let mut map_base = 0x9800;
+
+  let lcdc = m.loadb(0xff40);
+  if (lcdc & 0b10000) != 0 {
+    tile_base = 0x8000;
+    tile_bias = 0u8;
+  }
+  if (lcdc & 0b01000) != 0 {
+    map_base = 0x9c000;
+  }
+
+  // Load tiles
+  let mut tiles = [0xffu8, ..256*16];
+  for offset in range(0u, 256*16) {
+    tiles[offset] = m.loadb((tile_base + offset) as u16);
+  }
+
+  // Load map
+  let mut map = [0u8, ..32*32];
+  for offset in range(0u, 32u*32u) {
+    map[offset] = m.loadb((map_base + offset) as u16);
+  }
+
+  // Load palette
+  let pal = m.loadb(0xff47);
+
+  let mut data = [0u8, ..32*32*8*8];
+  let row_pitch = 32*8;
+
+  for row in range(0u, 32u) {
+    for col in range(0u, 32u) {
+      let tile_num = (map[row*32 + col] + tile_bias) as uint;
+      let tile = tiles.slice_from(tile_num * 16);
+      let pixels = data.mut_slice_from((row*row_pitch + col)*8);
+      for tile_row in range(0u, 8u) {
+        expand_tile_row(tile,
+                        pal,
+                        tile_row as u8,
+                        pixels.mut_slice_from(tile_row*row_pitch));
+      }
+    }
+  }
+
+  write_pgm(&Path::new("bg.pgm"), 32*8, 32*8, data);
 }
 
 fn parse_addr(s: &str) -> Option<u16> {
@@ -181,6 +267,14 @@ impl Debugger {
             None => error!("Invalid address: {:s}", words[1]),
           }
         }
+        None
+      },
+      &"tiles" => { // dump video tiles
+        dump_tiles(&mut cpu.mem);
+        None
+      },
+      &"bg" => { // dump video bg
+        dump_bg(&mut cpu.mem);
         None
       },
       _ => {

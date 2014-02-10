@@ -50,7 +50,7 @@ pub struct Video {
   obp1: u8,  // OBP1 register
 
   // Memory
-  vram: [u8, ..0x1800],
+  vram: [u8, ..0x2000],
   oam: [u8, ..0xa0],
 }
 
@@ -79,7 +79,7 @@ impl Video {
       bgp: 0,
       obp0: 0,
       obp1: 0,
-      vram: [0u8, ..0x1800],
+      vram: [0u8, ..0x2000],
       oam: [0u8, ..0xa0],
     }
   }
@@ -149,8 +149,7 @@ impl Video {
 impl mem::Mem for Video {
   fn loadb(&mut self, addr: u16) -> u8 {
     match addr {
-      0x8000..0x97ff => self.vram[addr - 0x8000],
-      0x9800..0x9fff => 0xff, // unused part of VRAM
+      0x8000..0x9fff => self.vram[addr - 0x8000],
       0xfe00..0xfe9f => self.oam[addr - 0xfe00], // OAM
 
       // I/O registers
@@ -172,8 +171,7 @@ impl mem::Mem for Video {
 
   fn storeb(&mut self, addr: u16, val: u8) {
     match addr {
-      0x8000..0x97ff => self.vram[addr - 0x8000] = val,
-      0x9800..0x9fff => (), // unused part of VRAM
+      0x8000..0x9fff => self.vram[addr - 0x8000] = val,
       0xfe00..0xfe9f => self.oam[addr - 0xfe00] = val,
 
       // I/O registers
