@@ -821,11 +821,12 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
   }
 
   fn inc8(&mut self, dst: Addr8) -> u8 {
-    let result = dst.load(self) + 1;
+    let val = dst.load(self);
+    let result = val + 1;
     dst.store(self, result);
     self.set_flag(ZERO_FLAG, result == 0);
     self.set_flag(ADD_SUB_FLAG, false);
-    self.set_flag(HALF_CARRY_FLAG, result == 0x10); // Only way for carry from bit 3
+    self.set_flag(HALF_CARRY_FLAG, val & 0xf == 0xf);
     // Note: carry flag not affected
     4 + 2 * dst.cycles()
   }
@@ -841,7 +842,7 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
     dst.store(self, result);
     self.set_flag(ZERO_FLAG, result == 0);
     self.set_flag(ADD_SUB_FLAG, true);
-    self.set_flag(HALF_CARRY_FLAG, result == 0x0f); // Only way for borrow from bit 4
+    self.set_flag(HALF_CARRY_FLAG, result & 0xf == 0xf);
     // Note: carry flag is not affected
     4 + 2 * dst.cycles()
   }
@@ -952,26 +953,26 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
   //
 
   fn rlca(&mut self) -> u8 {
-    // TODO: Zilog Z80 manual says RLCA does not affect zero flag, but RLC does
     self.rlc(Reg8(A));
+    self.set_flag(ZERO_FLAG, false);
     4
   }
 
   fn rla(&mut self) -> u8 {
-    // TODO: Zilog Z80 manual says RLA does not affect zero flag, but RL does
     self.rl(Reg8(A));
+    self.set_flag(ZERO_FLAG, false);
     4
   }
 
   fn rrca(&mut self) -> u8 {
-    // TODO: Zilog Z80 manual says RRCA does not affect zero flag, but RRC does
     self.rrc(Reg8(A));
+    self.set_flag(ZERO_FLAG, false);
     4
   }
 
   fn rra(&mut self) -> u8 {
-    // TODO: Zilog Z80 manual says RRA does not affect zero flag, but RR does
     self.rr(Reg8(A));
+    self.set_flag(ZERO_FLAG, false);
     4
   }
 
@@ -979,6 +980,7 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
     let val = dst.load(self);
     dst.store(self, (val << 1) | ((val & 0x80) >> 7));
     self.set_flag(ZERO_FLAG, val == 0); // zero iff zero before
+    self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, false);
     self.set_flag(CARRY_FLAG, (val & 0x80) != 0);
     8 + 2 * dst.cycles()
@@ -999,6 +1001,7 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
     let val = dst.load(self);
     dst.store(self, (val >> 1) | ((val & 0x01) << 7));
     self.set_flag(ZERO_FLAG, val == 0); // zero iff zero before
+    self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, false);
     self.set_flag(CARRY_FLAG, (val & 0x01) != 0);
     8 + 2 * dst.cycles()
