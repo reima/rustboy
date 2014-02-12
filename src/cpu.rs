@@ -730,7 +730,7 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
   }
 
   fn ldhl(&mut self, rel: i8) -> u8 {
-    self.ld16(Reg16(HL), Ind16((self.regs.sp as i16 + rel as i16) as u16));
+    self.ld16(Reg16(HL), Imm16((self.regs.sp as i16 + rel as i16) as u16));
     // TODO: Flags
     12
   }
