@@ -28,12 +28,17 @@ pub struct Timer {
   tac: u8,
 }
 
+pub enum Signal {
+  TIMAOverflow
+}
+
 impl Timer {
   pub fn new() -> Timer {
     Timer { div_cycles: 0, tima: 0, tima_cycles_mod: 0, tma: 0, tac: 0 }
   }
 
-  pub fn tick(&mut self, cycles: u8) {
+  pub fn tick(&mut self, cycles: u8) -> Option<Signal> {
+    let mut result = None;
     self.div_cycles += cycles as u16;
     if (self.tac & TIMER_START_FLAG) != 0 {
       self.tima_cycles_mod += cycles as u16;
@@ -44,13 +49,14 @@ impl Timer {
         if self.tima as u16 + increment > 0xff {
           // Overflow, reset to TMA
           self.tima = self.tma;
-          // TODO: Generate interrupt 50h
+          result = Some(TIMAOverflow);
         } else {
           self.tima += increment as u8;
         }
         self.tima_cycles_mod -= increment << shift;
       }
     }
+    result
   }
 }
 

@@ -138,7 +138,11 @@ fn main() {
     }
 
     let cycles = cpu.step();
-    cpu.mem.timer.tick(cycles);
+
+    match cpu.mem.timer.tick(cycles) {
+      Some(timer::TIMAOverflow) => cpu.mem.intr.irq(interrupt::IRQ_TIMER),
+      None => (),
+    }
 
     match cpu.mem.video.tick(cycles) {
       Some(video::DMA(base)) => {
