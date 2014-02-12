@@ -14,10 +14,10 @@ pub trait Mem {
 
 impl Mem for ~[u8] {
   fn loadb(&mut self, addr: u16) -> u8 {
-    self[addr as uint % self.len()]
+    self[addr]
   }
 
   fn storeb(&mut self, addr: u16, val: u8) {
-    self[addr as uint % self.len()] = val
+    self[addr] = val
   }
 }
