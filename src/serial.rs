@@ -1,4 +1,5 @@
 use mem;
+use std::io::Writer;
 
 //
 // Serial I/O
@@ -9,11 +10,12 @@ static SERIAL_TRANSFER_FLAG: u8 = 0x80;
 pub struct SerialIO {
   data: u8, // SB register
   control: u8, // SC register
+  writer: Option<~Writer>,
 }
 
 impl SerialIO {
-  pub fn new() -> SerialIO {
-    SerialIO { data: 0, control: 0 }
+  pub fn new(writer: Option<~Writer>) -> SerialIO {
+    SerialIO { data: 0, control: 0, writer: writer }
   }
 }
 
@@ -36,9 +38,9 @@ impl mem::Mem for SerialIO {
         if (val & SERIAL_TRANSFER_FLAG) != 0 {
           // Start transfer
           // TODO: This should be done with 8192 bits per second
-          // Debug output
-          //print!("{:c}", self.data.to_ascii().to_char());
-          self.data = 0xff; // No external GameBoy present, receive dummy value
+          self.writer.write_u8(self.data);
+          // No external GameBoy present, receive dummy value
+          self.data = 0xff;
           // Reset transfer flag to indicate transfer has finished
           self.control &= !SERIAL_TRANSFER_FLAG;
         }

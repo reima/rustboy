@@ -1,4 +1,5 @@
 use mem::Mem;
+use std::io::stdio;
 
 mod cartridge;
 mod cpu;
@@ -111,7 +112,7 @@ fn main() {
     intr: interrupt::InterruptCtrl::new(),
     sound: sound::Sound,
     video: video::Video::new(),
-    serial: serial::SerialIO::new(),
+    serial: serial::SerialIO::new(Some(~stdio::stdout() as ~std::io::Writer)),
     dummy: Dummy,
   };
   let mut cpu = cpu::Cpu::new(memmap);
