@@ -75,12 +75,32 @@ impl Mem for MemMap {
 
 fn main() {
   let args = std::os::args();
-  if args.len() != 2 {
-    println!("Usage: {:s} rom.gb", args[0]);
+  if args.len() != 2 && !(args.len() == 3 && args[1] == ~"-d") {
+    println!("Usage: {:s} [-d] rom.gb", args[0]);
     return;
   }
 
-  let cart = ~cartridge::Cartridge::from_path(&Path::new(args[1]));
+  let mut disassemble = false;
+  let path =
+    if args.len() == 2 {
+      args[1]
+    } else {
+      disassemble = true;
+      args[2]
+    };
+
+  let mut cart = ~cartridge::Cartridge::from_path(&Path::new(path));
+
+  if disassemble {
+    // Disassemble only
+    let mut d = disasm::Disasm { mem: &mut *cart, pc: 0 };
+    while d.pc <= 0x7fff {
+      let pc = d.pc;
+      println!("${:04X}\t{:s}", pc, cpu::decode(&mut d));
+    }
+    return;
+  }
+
   println!("Name: {:s}", cart.title);
   println!("Type: {:u}", cart.cartridge_type);
 

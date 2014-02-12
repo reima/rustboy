@@ -110,7 +110,7 @@ impl<'a, M: mem::Mem> Decoder<~str> for Disasm<'a, M> {
   fn dec16(&mut self, dst: Addr16)              -> ~str { unary16 ("DEC", dst) }
 
   fn and  (&mut self, src: Addr8)               -> ~str { unary8  ("AND", src) }
-  fn or   (&mut self, src: Addr8)               -> ~str { unary8  ("XOR", src) }
+  fn or   (&mut self, src: Addr8)               -> ~str { unary8  ("OR", src) }
   fn xor  (&mut self, src: Addr8)               -> ~str { unary8  ("XOR", src) }
 
   fn cp   (&mut self, src: Addr8)               -> ~str { unary8  ("CP", src) }
