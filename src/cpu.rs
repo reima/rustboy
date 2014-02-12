@@ -950,7 +950,7 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
     self.set_flag(ZERO_FLAG, result == 0);
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, false);
-    self.set_flag(CARRY_FLAG, (val & 0x80) != 0);
+    self.set_flag(CARRY_FLAG, (val & 0x01) != 0);
     8 + 2 * dst.cycles()
   }
 
