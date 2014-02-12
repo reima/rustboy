@@ -108,7 +108,7 @@ fn dump_tiles<M: Mem>(m: &mut M) {
 
 fn dump_bg<M: Mem>(m: &mut M) {
   let mut tile_base = 0x8800;
-  let mut tile_bias = 127u8; // ???
+  let mut tile_bias = 128u8;
   let mut map_base = 0x9800;
 
   let lcdc = m.loadb(0xff40);
