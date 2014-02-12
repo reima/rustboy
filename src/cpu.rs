@@ -547,6 +547,7 @@ pub fn decode<R, D: Decoder<R>>(d: &mut D) -> R {
 pub struct Cpu<M> {
   regs: Regs,
   ime: bool,
+  halted: bool,
   cycles: u64,
   mem: M,
 }
@@ -556,12 +557,24 @@ impl<M: mem::Mem> Cpu<M> {
     Cpu {
       regs: Regs::new(),
       ime: false, // TODO: Are interrupts enabled at boot?
+      halted: false,
       cycles: 0u64,
       mem: mem,
     }
   }
 
   pub fn step(&mut self) -> u8 {
+    if self.halted {
+      if self.mem.loadb(0xff0f) != 0 {
+        // Wake up on interrupt
+        self.halted = false;
+      } else {
+        // NOP
+        self.cycles += 4;
+        return 4;
+      }
+    }
+
     // Check for interrupts
     if self.ime {
       let enabled_mask = self.mem.loadb(0xffff);
@@ -654,7 +667,8 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
   }
 
   fn halt(&mut self) -> u8 {
-    fail!("instruction not implemented: halt")
+    self.halted = true;
+    4
   }
 
   fn stop(&mut self, val: u8) -> u8 {
