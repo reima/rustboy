@@ -883,7 +883,41 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
   }
 
   fn daa(&mut self) -> u8 {
-    fail!("instruction not implemented: ${:04X}  daa", self.regs.pc);
+    // http://forums.nesdev.com/viewtopic.php?t=9088
+    let mut a = self.regs.a as u16;
+
+    if self.get_flag(ADD_SUB_FLAG) {
+      if self.get_flag(HALF_CARRY_FLAG) {
+        a = (a - 0x06) & 0xff;
+      }
+      if self.get_flag(CARRY_FLAG) {
+        a -= 0x60;
+      }
+    } else {
+      if self.get_flag(HALF_CARRY_FLAG) || (a & 0xf) > 9 {
+        a += 0x06;
+      }
+      if self.get_flag(CARRY_FLAG) || a > 0x9f {
+        a += 0x60;
+      }
+    }
+
+    self.set_flag(HALF_CARRY_FLAG, false);
+    self.set_flag(ZERO_FLAG, false);
+
+    if (a & 0x100) != 0 {
+      self.set_flag(CARRY_FLAG, true);
+    }
+
+    a &= 0xff;
+
+    if a == 0 {
+      self.set_flag(ZERO_FLAG, true);
+    }
+
+    self.regs.a = a as u8;
+
+    4
   }
 
   //
