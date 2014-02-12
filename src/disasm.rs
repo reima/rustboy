@@ -91,7 +91,7 @@ impl<'a, M: mem::Mem> Decoder<~str> for Disasm<'a, M> {
   fn ld8 (&mut self, dst: Addr8,  src: Addr8)  -> ~str { binary8 ("LD", dst, src) }
   fn ld16(&mut self, dst: Addr16, src: Addr16) -> ~str { binary16("LD", dst, src) }
   fn ldh (&mut self, dst: Addr8,  src: Addr8)  -> ~str { binary8 ("LDH", dst, src) }
-  fn ldhl(&mut self, rel: i8)                  -> ~str { format!("LDHL SP, {:d}", rel) }
+  fn ldhl(&mut self, rel: i8)                  -> ~str { format! ("LDHL SP, {:d}", rel) }
 
   fn push(&mut self, src: Addr16)              -> ~str { unary16 ("PUSH", src) }
   fn pop (&mut self, dst: Addr16)              -> ~str { unary16 ("POP", dst) }
@@ -99,6 +99,7 @@ impl<'a, M: mem::Mem> Decoder<~str> for Disasm<'a, M> {
   // Arithmetic/logic
   fn add8 (&mut self, src: Addr8)               -> ~str { unary8  ("ADD A,", src) }
   fn add16(&mut self, dst: Addr16, src: Addr16) -> ~str { binary16("ADD", dst, src) }
+  fn addsp(&mut self, rel: i8)                  -> ~str { format! ("ADD SP, {:d}", rel) }
   fn adc  (&mut self, src: Addr8)               -> ~str { unary8  ("ADC A,", src) }
 
   fn sub  (&mut self, src: Addr8)               -> ~str { unary8  ("SUB", src) }

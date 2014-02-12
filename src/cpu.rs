@@ -268,6 +268,7 @@ pub trait Decoder<R> {
   // Arithmetic/logic
   fn add8 (&mut self, src: Addr8)               -> R;
   fn add16(&mut self, dst: Addr16, src: Addr16) -> R;
+  fn addsp(&mut self, rel: i8)                  -> R;
   fn adc  (&mut self, src: Addr8)               -> R;
 
   fn sub  (&mut self, src: Addr8)               -> R;
@@ -508,7 +509,7 @@ pub fn decode<R, D: Decoder<R>>(d: &mut D) -> R {
     0xe6 => { let imm = d.fetch(); d.and(Imm8(imm)) }
     0xe7 => d.rst(0x20),
 
-    /*0xe8 => d.add16(Reg16(SP), ???),*/ // TODO
+    0xe8 => { let imm = d.fetch(); d.addsp(imm as i8) }
     0xe9 => d.jp(CondNone, Reg16(HL)),
     0xea => { let ind = fetchw(); d.ld8(Imm16Ind8(ind), Reg8(A)) }
     /*0xeb => d.nop(),*/
@@ -631,6 +632,18 @@ impl<M: mem::Mem> Cpu<M> {
     self.set_flag(HALF_CARRY_FLAG, (((a & 0xf) - (b & 0xf) - c) & 0x10) != 0); // ???
     self.set_flag(CARRY_FLAG, (result & 0x100) != 0); // ???
   }
+
+  // Add to SP helper
+  fn addsp_(&mut self, rel: i8) -> u16 {
+    let sp = self.regs.sp;
+    let rel = rel as u16;
+    let result = sp + rel;
+    self.set_flag(ZERO_FLAG, false);
+    self.set_flag(ADD_SUB_FLAG, false);
+    self.set_flag(HALF_CARRY_FLAG, (((sp & 0xf) + (rel & 0xf)) & 0x10) != 0);
+    self.set_flag(CARRY_FLAG, (((sp & 0xff) + (rel & 0xff)) & 0x100) != 0);
+    result
+  }
 }
 
 // Opcode implementation.
@@ -715,7 +728,6 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
   }
 
   fn reti(&mut self) -> u8 {
-    // TODO: Tell someone an interrupt got handled?
     self.pop(Reg16(PC));
     self.ei();
     8
@@ -744,8 +756,9 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
   }
 
   fn ldhl(&mut self, rel: i8) -> u8 {
-    self.ld16(Reg16(HL), Imm16((self.regs.sp as i16 + rel as i16) as u16));
-    // TODO: Flags
+    let result = self.addsp_(rel);
+    self.regs.h = (result >> 8) as u8;
+    self.regs.l = (result & 0xff) as u8;
     12
   }
 
@@ -779,9 +792,14 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
     let result = op1 + op2;
     dst.store(self, result as u16);
     self.set_flag(ADD_SUB_FLAG, false);
-    self.set_flag(HALF_CARRY_FLAG, (((op1 & 0xf00) + (op2 & 0xf00)) & 0x1000) != 0); // ???
+    self.set_flag(HALF_CARRY_FLAG, (((op1 & 0xfff) + (op2 & 0xfff)) & 0x1000) != 0);
     self.set_flag(CARRY_FLAG, (result & 0x10000) != 0);
     8
+  }
+
+  fn addsp(&mut self, rel: i8) -> u8 {
+    self.regs.sp = self.addsp_(rel);
+    16
   }
 
   fn adc(&mut self, src: Addr8) -> u8 {
@@ -789,11 +807,6 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
     self.add_(self.regs.a, b, (self.regs.f >> CARRY_OFFSET) & 1);
     4 + src.cycles()
   }
-
-  // TODO
-  //fn add_sp(&mut self, rel: i8) -> u8 {
-  //  self.regs.sp = (self.regs.sp as i16 + rel as i16) as u16;
-  //}
 
   fn sub(&mut self, src: Addr8) -> u8 {
     let b = src.load(self);
