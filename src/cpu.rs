@@ -95,7 +95,7 @@ impl<M: mem::Mem> Reg16 {
 
   fn store(&self, cpu: &mut Cpu<M>, val: u16) {
     match *self {
-      AF => { cpu.regs.a = (val >> 8) as u8; cpu.regs.f = val as u8 }
+      AF => { cpu.regs.a = (val >> 8) as u8; cpu.regs.f = val as u8 & 0xf0 }
       BC => { cpu.regs.b = (val >> 8) as u8; cpu.regs.c = val as u8 }
       DE => { cpu.regs.d = (val >> 8) as u8; cpu.regs.e = val as u8 }
       HL => { cpu.regs.h = (val >> 8) as u8; cpu.regs.l = val as u8 }
