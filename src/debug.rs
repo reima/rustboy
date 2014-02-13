@@ -1,8 +1,10 @@
 use mem::Mem;
-use disasm;
 use cpu;
+use disasm;
+use std::comm::Data;
+use std::io::stdio::{print, println};
+use std::io::{signal, stdio, File, BufferedReader, IoResult};
 use std::num::from_str_radix;
-use std::io::{buffered, signal, stdio, File};
 
 //
 // Debugger
@@ -79,15 +81,17 @@ fn expand_tile_row(tile: &[u8], palette: u8, row: u8, pixels: &mut [u8]) {
   }
 }
 
-fn write_pgm(path: &Path, width: uint, height: uint, data: &[u8]) {
+fn write_pgm(path: &Path, width: uint, height: uint, data: &[u8]) -> IoResult<()> {
   let mut output = File::create(path).unwrap();
-  output.write_line("P5");
-  output.write_line(format!("{:u} {:u}", width, height));
-  output.write_line("3");
-  output.write(data);
+  if_ok!(output.write_line("P5"));
+  if_ok!(output.write_line(format!("{:u} {:u}", width, height)));
+  if_ok!(output.write_line("3"));
+  if_ok!(output.write(data));
+
+  Ok(())
 }
 
-fn dump_tiles<M: Mem>(m: &mut M) {
+fn dump_tiles<M: Mem>(m: &mut M) -> IoResult<()> {
   let mut data = [0u8, ..16*24*8*8];
 
   for num in range(0u, 384u) {
@@ -103,10 +107,10 @@ fn dump_tiles<M: Mem>(m: &mut M) {
     }
   }
 
-  write_pgm(&Path::new("tiles.pgm"), 16*8, 24*8, data);
+  write_pgm(&Path::new("tiles.pgm"), 16*8, 24*8, data)
 }
 
-fn dump_bg<M: Mem>(m: &mut M) {
+fn dump_bg<M: Mem>(m: &mut M) -> IoResult<()> {
   let mut tile_base = 0x8800;
   let mut tile_bias = 128u8;
   let mut map_base = 0x9800;
@@ -152,7 +156,7 @@ fn dump_bg<M: Mem>(m: &mut M) {
     }
   }
 
-  write_pgm(&Path::new("bg.pgm"), 32*8, 32*8, data);
+  write_pgm(&Path::new("bg.pgm"), 32*8, 32*8, data)
 }
 
 fn parse_addr(s: &str) -> Option<u16> {
@@ -179,7 +183,10 @@ pub enum DebuggerCommand {
 impl Debugger {
   pub fn new() -> Debugger {
     let mut intr_listener = signal::Listener::new();
-    intr_listener.register(signal::Interrupt);
+    match intr_listener.register(signal::Interrupt) {
+      Err(e) => fail!("Failed to register signal handler: {:s}", e.to_str()),
+      _ => (),
+    }
 
     Debugger { breakpoints: ~[], intr_listener: intr_listener }
   }
@@ -270,11 +277,17 @@ impl Debugger {
         None
       },
       &"tiles" => { // dump video tiles
-        dump_tiles(&mut cpu.mem);
+        match dump_tiles(&mut cpu.mem) {
+          Err(e) => error!("I/O error: {:s}", e.to_str()),
+          _ => (),
+        }
         None
       },
       &"bg" => { // dump video bg
-        dump_bg(&mut cpu.mem);
+        match dump_bg(&mut cpu.mem) {
+          Err(e) => error!("I/O error: {:s}", e.to_str()),
+          _ => (),
+        }
         None
       },
       _ => {
@@ -285,20 +298,20 @@ impl Debugger {
   }
 
   pub fn prompt<M: Mem>(&mut self, cpu: &mut cpu::Cpu<M>) -> DebuggerCommand {
-    let mut stdin = buffered::BufferedReader::new(stdio::stdin());
+    let mut stdin = BufferedReader::new(stdio::stdin());
 
     loop {
       print("> ");
       stdio::flush();
       match stdin.read_line() {
-        Some(line) => {
+        Ok(line) => {
           let words = line.words().to_owned_vec();
           match self.dispatch(cpu, words) {
             Some(command) => return command,
             None => (),
           }
         },
-        None => {
+        Err(_) => {
           println("\nType q to exit");
           self.intr_listener.port.recv(); // grok the interrupt
         }
@@ -316,7 +329,7 @@ impl Debugger {
     }
 
     match self.intr_listener.port.try_recv() {
-      Some(signal::Interrupt) => {
+      Data(signal::Interrupt) => {
         println("Interrupted");
         return true
       },

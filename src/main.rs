@@ -90,7 +90,10 @@ fn main() {
       args[2]
     };
 
-  let mut cart = ~cartridge::Cartridge::from_path(&Path::new(path));
+  let mut cart = match cartridge::Cartridge::from_path(&Path::new(path)) {
+    Ok(cart) => ~cart,
+    Err(e)   => fail!("I/O error: {:s}", e.to_str()),
+  };
 
   if disassemble {
     // Disassemble only

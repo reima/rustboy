@@ -38,7 +38,10 @@ impl mem::Mem for SerialIO {
         if (val & SERIAL_TRANSFER_FLAG) != 0 {
           // Start transfer
           // TODO: This should be done with 8192 bits per second
-          self.writer.write_u8(self.data);
+          match self.writer {
+            Some(ref mut writer) => { let r = writer.write_u8(self.data); },
+            None => (),
+          }
           // No external GameBoy present, receive dummy value
           self.data = 0xff;
           // Reset transfer flag to indicate transfer has finished

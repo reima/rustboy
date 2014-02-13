@@ -1,5 +1,5 @@
 use mem::Mem;
-use std::io;
+use std::io::{File, IoResult, SeekSet};
 
 static HEADER_OFFSET: i64 = 0x100;
 static ROM_BANK_SIZE: uint = 0x4000;
@@ -19,19 +19,19 @@ pub struct Cartridge {
 }
 
 impl Cartridge {
-  pub fn from_path(path: &Path) -> Cartridge {
-    Cartridge::from_file(&mut io::File::open(path).unwrap())
+  pub fn from_path(path: &Path) -> IoResult<Cartridge> {
+    Cartridge::from_file(&mut File::open(path).unwrap())
   }
 
-  fn from_file(file: &mut io::File) -> Cartridge {
+  fn from_file(file: &mut File) -> IoResult<Cartridge> {
     use std::str;
     use std::vec;
 
     let mut header = [0, ..80];
-    file.seek(HEADER_OFFSET, io::SeekSet);
-    file.read(header);
+    if_ok!(file.seek(HEADER_OFFSET, SeekSet));
+    if_ok!(file.read(header));
 
-    let title = str::from_utf8(header.slice(0x34, 0x43)).to_owned();
+    let title = str::from_utf8(header.slice(0x34, 0x43)).unwrap().to_owned();
 
     let cartridge_type = header[0x47];
     let mbc =
@@ -51,10 +51,12 @@ impl Cartridge {
         _ => fail!("unsupported ROM size: 0x{:02X}", rom_size),
       };
     let mut rom_banks = ~[];
-    file.seek(0, io::SeekSet);
+
+    if_ok!(file.seek(0, SeekSet));
+
     for bank in range(0, rom_bank_count) {
       let mut bank = vec::from_elem(ROM_BANK_SIZE, 0u8);
-      file.read(bank);
+      if_ok!(file.read(bank));
       rom_banks.push(bank);
     }
 
@@ -63,7 +65,7 @@ impl Cartridge {
       fail!("unsupported RAM size: 0x{:02X}", ram_size);
     }
 
-    Cartridge {
+    let cart = Cartridge {
       title: title,
       cartridge_type: cartridge_type,
       rom_size: rom_size,
@@ -71,7 +73,9 @@ impl Cartridge {
       rom_banks: rom_banks,
       rom_bank: 1,
       mbc: mbc,
-    }
+    };
+
+    Ok(cart)
   }
 }
 
