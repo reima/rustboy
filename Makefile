@@ -4,6 +4,7 @@ RUST = $(RUSTC) $(RUSTFLAGS)
 
 SRC = src
 BUILD = build
+LIBDIR = lib
 
 TARGET = $(BUILD)/rustboy
 DEPS = $(BUILD)/.depends
@@ -17,7 +18,7 @@ clean:
 	rm -d $(BUILD)
 
 $(TARGET): $(SRC)/main.rs |$(BUILD)
-	$(RUST) $< -o $@ --dep-info $(DEPS)
+	$(RUST) $< -L $(LIBDIR) -o $@ --dep-info $(DEPS)
 
 $(BUILD):
 	mkdir $(BUILD)

@@ -1,3 +1,5 @@
+extern mod sdl2;
+
 use mem::Mem;
 use std::io::stdio;
 
@@ -74,6 +76,47 @@ impl Mem for MemMap {
 }
 
 
+//
+// Video Output
+//
+
+struct VideoOut {
+  renderer: ~sdl2::render::Renderer,
+  texture: ~sdl2::render::Texture,
+}
+
+impl VideoOut {
+  fn new() -> VideoOut {
+    use sdl2::render::Renderer;
+
+    sdl2::init([sdl2::InitVideo]);
+
+    let renderer = match Renderer::new_with_window(video::SCREEN_WIDTH as int,
+                                                   video::SCREEN_HEIGHT as int,
+                                                   [sdl2::video::Resizable]) {
+      Ok(renderer) => renderer,
+      Err(err) => fail!("Failed to create window: {}", err)
+    };
+
+    let texture = match renderer.create_texture(sdl2::pixels::ARGB8888,
+                                                sdl2::render::AccessStreaming,
+                                                video::SCREEN_WIDTH as int,
+                                                video::SCREEN_HEIGHT as int) {
+      Ok(texture) => texture,
+      Err(err) => fail!("Failed to create texture: {}", err),
+    };
+
+    VideoOut { renderer: renderer, texture: texture }
+  }
+
+  fn blit_and_present(&self, pixels: &[u8]) {
+    self.texture.update(None, pixels, (video::SCREEN_WIDTH * 4) as int);
+    self.renderer.copy(self.texture, None, None);
+    self.renderer.present();
+  }
+}
+
+
 fn main() {
   let args = std::os::args();
   if args.len() != 2 && !(args.len() == 3 && args[1] == ~"-d") {
@@ -121,11 +164,13 @@ fn main() {
   let mut cpu = cpu::Cpu::new(memmap);
   cpu.regs.pc = 0x100;
 
-  let mut running = false;
+  let video_out = VideoOut::new();
 
+  let mut done = false;
+  let mut running = false;
   let mut debugger = debug::Debugger::new();
 
-  loop {
+  while !done {
     if running {
       if debugger.should_break(&cpu) {
         running = false;
@@ -157,10 +202,24 @@ fn main() {
         }
       },
       Some(video::VBlank) => {
+        video_out.blit_and_present(cpu.mem.video.screen);
         cpu.mem.intr.irq(interrupt::IRQ_VBLANK);
       }
       Some(video::LCD)    => cpu.mem.intr.irq(interrupt::IRQ_LCD),
       None => (),
+    }
+
+    loop {
+      match sdl2::event::poll_event() {
+        sdl2::event::QuitEvent(_) => { done = true; break }
+        sdl2::event::KeyDownEvent(_, _, key, _, _) => {
+          if key == sdl2::keycode::PKey {
+            running = false;
+          }
+        }
+        sdl2::event::NoEvent => break,
+        _ => (),
+      }
     }
   }
 }

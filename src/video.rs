@@ -26,6 +26,9 @@ static STAT_COINCIDENCE_IRQ: u8  = 0b01000000;
 static STAT_IRQ_MASK: u8         = 0b01111000;
 static STAT_COINCIDENCE_FLAG: u8 = 0b00000100;
 
+pub static SCREEN_WIDTH: uint = 160;
+pub static SCREEN_HEIGHT: uint = 144;
+
 pub struct Video {
   // Implementation state
   cycles: u32, // internal cycle count, wraps around at SCREEN_REFRESH_CYCLES
@@ -52,6 +55,9 @@ pub struct Video {
   // Memory
   vram: [u8, ..0x2000],
   oam: [u8, ..0xa0],
+
+  // Screen buffer
+  screen: [u8, ..SCREEN_WIDTH*SCREEN_HEIGHT*4],
 }
 
 
@@ -81,6 +87,7 @@ impl Video {
       obp1: 0,
       vram: [0u8, ..0x2000],
       oam: [0u8, ..0xa0],
+      screen: [0u8, ..SCREEN_WIDTH*SCREEN_HEIGHT*4], // BGRA
     }
   }
 
@@ -117,6 +124,11 @@ impl Video {
         return Some(VBlank) // TODO: Also generate LCD interrupt if STAT_MODE1_IRQ is set
       }
 
+      if self.mode == 0 {
+        // H-Blank
+        self.draw_bg_row(self.ly as uint);
+      }
+
       match self.mode {
         0 => if self.stat & STAT_MODE0_IRQ != 0 { return Some(LCD) },
         1 => if self.stat & STAT_MODE1_IRQ != 0 { return Some(LCD) },
@@ -142,7 +154,37 @@ impl Video {
       self.stat &= !STAT_COINCIDENCE_FLAG;
     }
     // Mode flag
-    self.stat = (self.stat & STAT_IRQ_MASK) | self.mode;
+    self.stat = (self.stat & (STAT_IRQ_MASK |STAT_COINCIDENCE_FLAG)) | self.mode;
+  }
+
+  fn draw_bg_row(&mut self, row: uint) {
+    let mut tile_base = 0x800;
+    let mut tile_bias = 128u8;
+    let mut map_base = 0x1800;
+
+    if (self.flags & 0b10000) != 0 {
+      tile_base = 0x0;
+      tile_bias = 0u8;
+    }
+    if (self.flags & 0b01000) != 0 {
+      map_base = 0x1c00;
+    }
+
+    let pal = self.bgp;
+
+    let y = row;
+    let bg_y = (y + self.scy as uint) % (32*8);
+    let bg_tile_y = bg_y / 8;
+    for x in range(0u, SCREEN_WIDTH) {
+      let bg_x = (x + self.scx as uint) % (32*8);
+      let bg_tile_x = bg_x / 8;
+      let tile_num = (self.vram[map_base + bg_tile_y*32 + bg_tile_x] + tile_bias) as uint;
+      let tile = self.vram.slice_from(tile_base + tile_num*16);
+      let pixel = self.screen.mut_slice_from((y * SCREEN_WIDTH + x) * 4);
+      let tile_row = bg_y % 8;
+      let tile_col = bg_x % 8;
+      unpack_tile_pixel(tile, pal, tile_row, tile_col, pixel);
+    }
   }
 }
 
@@ -176,7 +218,7 @@ impl mem::Mem for Video {
 
       // I/O registers
       0xff40 => self.flags = val,
-      0xff41 => self.stat = val & STAT_IRQ_MASK, // Only interrupt enable bits are writeable
+      0xff41 => self.stat = (val & STAT_IRQ_MASK) | (self.stat & !STAT_IRQ_MASK), // Only interrupt enable bits are writeable
       0xff42 => self.scy = val,
       0xff43 => self.scx = val,
       0xff44 => (), // Read-only LY register
@@ -190,4 +232,25 @@ impl mem::Mem for Video {
       _ => fail!("invalid video address: ${:04X}", addr),
     }
   }
+}
+
+fn unpack_tile_pixel(tile: &[u8],
+                     palette: u8,
+                     row: uint,
+                     col: uint,
+                     pixel: &mut [u8]) {
+  static colors: &'static [& 'static[u8]] = &[
+    &[244, 248, 208],
+    &[136, 192, 112],
+    &[52, 104, 86],
+    &[8, 24, 32]
+  ];
+
+  let low_bit  = (tile[2*row]   >> (7 - col)) & 1;
+  let high_bit = (tile[2*row+1] >> (7 - col)) & 1;
+  let value = (high_bit << 1) | low_bit;
+  let color = (palette >> (2 * value)) & 0b11;
+  pixel[0] = colors[color][2];
+  pixel[1] = colors[color][1];
+  pixel[2] = colors[color][0];
 }

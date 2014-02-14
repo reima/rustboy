@@ -121,7 +121,7 @@ fn dump_bg<M: Mem>(m: &mut M) -> IoResult<()> {
     tile_bias = 0u8;
   }
   if (lcdc & 0b01000) != 0 {
-    map_base = 0x9c000;
+    map_base = 0x9c00;
   }
 
   // Load tiles
