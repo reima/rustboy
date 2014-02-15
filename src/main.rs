@@ -204,6 +204,9 @@ fn main() {
   let counts_per_frame = counts_per_sec * video::SCREEN_REFRESH_CYCLES as u64 / cpu::CYCLES_PER_SEC as u64;
   let mut last_frame_start_count = sdl2::timer::get_performance_counter();
 
+  let mut last_fps_update = last_frame_start_count;
+  let mut frames = 0;
+
   println!("c/s: {:u}; c/f: {:u}", counts_per_sec, counts_per_frame);
 
   while !done {
@@ -250,6 +253,15 @@ fn main() {
     // Synchronize speed based on frame time
     if new_frame {
       let now = sdl2::timer::get_performance_counter();
+
+      frames += 1;
+      if now - last_fps_update > counts_per_sec {
+        let fps = frames * (now - last_fps_update) / counts_per_sec;
+        video_out.set_title(format!("Rustboy - {} fps", fps));
+        last_fps_update = now;
+        frames = 0;
+      }
+
       let frame_time = now - last_frame_start_count;
       if frame_time < counts_per_frame {
         let delay_msec = (1_000 * (counts_per_frame - frame_time) / counts_per_sec) as uint;
