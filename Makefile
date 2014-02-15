@@ -1,5 +1,5 @@
 RUSTC ?= rustc
-RUSTFLAGS ?= -A unused-variable -A dead-code
+RUSTFLAGS ?= -A unused-variable -A dead-code -O
 RUST = $(RUSTC) $(RUSTFLAGS)
 
 SRC = src

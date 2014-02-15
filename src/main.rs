@@ -86,16 +86,19 @@ struct VideoOut {
 }
 
 impl VideoOut {
-  fn new() -> VideoOut {
+  fn new(scale: int) -> VideoOut {
     use sdl2::render::Renderer;
 
     sdl2::init([sdl2::InitVideo]);
 
-    let renderer = match Renderer::new_with_window(video::SCREEN_WIDTH as int,
-                                                   video::SCREEN_HEIGHT as int,
+    let window_width = video::SCREEN_WIDTH as int * scale;
+    let window_height = video::SCREEN_HEIGHT as int * scale;
+
+    let renderer = match Renderer::new_with_window(window_width,
+                                                   window_height,
                                                    [sdl2::video::Resizable]) {
       Ok(renderer) => renderer,
-      Err(err) => fail!("Failed to create window: {}", err)
+      Err(err) => fail!("Failed to create renderer: {}", err)
     };
 
     let texture = match renderer.create_texture(sdl2::pixels::ARGB8888,
@@ -113,6 +116,13 @@ impl VideoOut {
     self.texture.update(None, pixels, (video::SCREEN_WIDTH * 4) as int);
     self.renderer.copy(self.texture, None, None);
     self.renderer.present();
+  }
+
+  fn set_title(&self, title: &str) {
+    match self.renderer.parent {
+      sdl2::render::Window(ref w) => w.set_title(title),
+      _ => (),
+    }
   }
 }
 
@@ -164,11 +174,18 @@ fn main() {
   let mut cpu = cpu::Cpu::new(memmap);
   cpu.regs.pc = 0x100;
 
-  let video_out = VideoOut::new();
+  let video_out = VideoOut::new(2);
+  video_out.set_title("Rustboy");
 
   let mut done = false;
   let mut running = false;
   let mut debugger = debug::Debugger::new();
+
+  let counts_per_sec = sdl2::timer::get_performance_frequency();
+  let counts_per_frame = counts_per_sec * video::SCREEN_REFRESH_CYCLES as u64 / cpu::CYCLES_PER_SEC as u64;
+  let mut last_frame_start_count = sdl2::timer::get_performance_counter();
+
+  println!("c/s: {:u}; c/f: {:u}", counts_per_sec, counts_per_frame);
 
   while !done {
     if running {
@@ -192,6 +209,7 @@ fn main() {
       None => (),
     }
 
+    let mut new_frame = false;
     match cpu.mem.video.tick(cycles) {
       Some(video::DMA(base)) => {
         // Do DMA transfer instantaneously
@@ -204,9 +222,22 @@ fn main() {
       Some(video::VBlank) => {
         video_out.blit_and_present(cpu.mem.video.screen);
         cpu.mem.intr.irq(interrupt::IRQ_VBLANK);
+        new_frame = true;
       }
       Some(video::LCD)    => cpu.mem.intr.irq(interrupt::IRQ_LCD),
       None => (),
+    }
+
+    // Synchronize speed based on frame time
+    if new_frame {
+      let now = sdl2::timer::get_performance_counter();
+      let frame_time = now - last_frame_start_count;
+      if frame_time < counts_per_frame {
+        let delay_msec = (1_000 * (counts_per_frame - frame_time) / counts_per_sec) as uint;
+        sdl2::timer::delay(delay_msec);
+      }
+      // TODO: What should we do when we take longer than counts_per_frame?
+      last_frame_start_count = now;
     }
 
     loop {

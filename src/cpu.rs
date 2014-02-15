@@ -15,7 +15,7 @@ static HALF_CARRY_FLAG:   u8 = 1 << HALF_CARRY_OFFSET;
 static ADD_SUB_FLAG:      u8 = 1 << ADD_SUB_OFFSET;
 static ZERO_FLAG:         u8 = 1 << ZERO_OFFSET;
 
-static CYCLES_PER_SEC:    u64 = 4194304; // 4.194304 MHz
+pub static CYCLES_PER_SEC: uint = 4194304; // 4.194304 MHz
 
 
 //

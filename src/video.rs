@@ -4,18 +4,18 @@ use mem;
 // Video
 //
 
-static MODE0_CYCLES: u32 = 204;   // H-Blank
-static MODE1_CYCLES: u32 = 4560;  // V-Blank
-static MODE2_CYCLES: u32 = 80;    // Transfer to LCD
-static MODE3_CYCLES: u32 = 172;   // Transfer to LCD
+static MODE0_CYCLES: uint = 204;   // H-Blank
+static MODE1_CYCLES: uint = 4560;  // V-Blank
+static MODE2_CYCLES: uint = 80;    // Transfer to LCD
+static MODE3_CYCLES: uint = 172;   // Transfer to LCD
 
-static MODE0_START: u32 = MODE0_CYCLES;
-static MODE2_START: u32 = MODE0_START + MODE0_CYCLES;
-static MODE3_START: u32 = MODE2_START + MODE2_CYCLES;
+static MODE0_START: uint = MODE0_CYCLES;
+static MODE2_START: uint = MODE0_START + MODE0_CYCLES;
+static MODE3_START: uint = MODE2_START + MODE2_CYCLES;
 
-static ROW_CYCLES: u32 = MODE0_CYCLES + MODE2_CYCLES + MODE3_CYCLES;
+static ROW_CYCLES: uint = MODE0_CYCLES + MODE2_CYCLES + MODE3_CYCLES;
 
-static SCREEN_REFRESH_CYCLES: u32 = SCREEN_HEIGHT as u32 * ROW_CYCLES + MODE1_CYCLES;
+pub static SCREEN_REFRESH_CYCLES: uint = SCREEN_HEIGHT * ROW_CYCLES + MODE1_CYCLES;
 
 static STAT_MODE0_IRQ: u8        = 0b0000_1000;
 static STAT_MODE1_IRQ: u8        = 0b0001_0000;
@@ -58,7 +58,7 @@ pub static SCREEN_HEIGHT: uint = 144;  // After this many rows, V-Blank starts
 
 pub struct Video {
   // Implementation state
-  cycles: u32, // internal cycle count, wraps around at SCREEN_REFRESH_CYCLES
+  cycles: uint, // internal cycle count, wraps around at SCREEN_REFRESH_CYCLES
 
   mode: u8,  // LCD mode (0-3)
   dma: u8,   // DMA request, 0xff = no request, 0x00-0xf1 = requested base address
@@ -122,7 +122,7 @@ impl Video {
     let old_ly = self.ly;
     let old_mode = self.mode;
 
-    self.cycles = (self.cycles + cycles as u32) % SCREEN_REFRESH_CYCLES;
+    self.cycles = (self.cycles + cycles as uint) % SCREEN_REFRESH_CYCLES;
     self.ly = (self.cycles / ROW_CYCLES) as u8;
 
     self.mode =
