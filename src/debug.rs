@@ -1,9 +1,8 @@
 use mem::Mem;
 use cpu;
 use disasm;
-use std::comm::Data;
 use std::io::stdio::{print, println};
-use std::io::{signal, stdio, File, BufferedReader, IoResult};
+use std::io::{stdio, File, BufferedReader, IoResult};
 use std::num::from_str_radix;
 
 //
@@ -171,7 +170,6 @@ fn parse_addr(s: &str) -> Option<u16> {
 
 pub struct Debugger {
   breakpoints: ~[u16],
-  intr_listener: signal::Listener,
 }
 
 pub enum DebuggerCommand {
@@ -182,13 +180,7 @@ pub enum DebuggerCommand {
 
 impl Debugger {
   pub fn new() -> Debugger {
-    let mut intr_listener = signal::Listener::new();
-    match intr_listener.register(signal::Interrupt) {
-      Err(e) => fail!("Failed to register signal handler: {:s}", e.to_str()),
-      _ => (),
-    }
-
-    Debugger { breakpoints: ~[], intr_listener: intr_listener }
+    Debugger { breakpoints: ~[] }
   }
 
   fn show_breakpoints(&self) {
@@ -313,7 +305,6 @@ impl Debugger {
         },
         Err(_) => {
           println("\nType q to exit");
-          self.intr_listener.port.recv(); // grok the interrupt
         }
       }
     }
@@ -325,17 +316,7 @@ impl Debugger {
         println!("Breakpoint at ${:04X}", bp);
         return true
       },
-      None => (),
+      None => false,
     }
-
-    match self.intr_listener.port.try_recv() {
-      Data(signal::Interrupt) => {
-        println("Interrupted");
-        return true
-      },
-      _ => (),
-    }
-
-    false
   }
 }

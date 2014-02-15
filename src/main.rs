@@ -145,6 +145,14 @@ fn keymap(code: sdl2::keycode::KeyCode) -> Option<joypad::Button> {
 }
 
 
+#[deriving(Eq)]
+enum State {
+  Paused,
+  Running,
+  Step,
+  Done,
+}
+
 fn main() {
   let args = std::os::args();
   if args.len() != 2 && !(args.len() == 3 && args[1] == ~"-d") {
@@ -196,8 +204,7 @@ fn main() {
   let video_out = VideoOut::new(4);
   video_out.set_title("Rustboy");
 
-  let mut done = false;
-  let mut running = false;
+  let mut state = Paused;
   let mut debugger = debug::Debugger::new();
 
   let counts_per_sec = sdl2::timer::get_performance_frequency();
@@ -209,77 +216,87 @@ fn main() {
 
   println!("c/s: {:u}; c/f: {:u}", counts_per_sec, counts_per_frame);
 
-  while !done {
-    if running {
-      if debugger.should_break(&cpu) {
-        running = false;
-      }
-    }
-
-    if !running {
+  while state != Done {
+    if state == Paused || state == Step {
       match debugger.prompt(&mut cpu) {
         debug::Quit => break,
-        debug::Run  => running = true,
-        debug::Step => (),
+        debug::Run  => state = Running,
+        debug::Step => state = Step,
       }
     }
 
-    let cycles = cpu.step();
+    // Emulation loop
+    loop {
+      let cycles = cpu.step();
 
-    match cpu.mem.timer.tick(cycles) {
-      Some(timer::TIMAOverflow) => cpu.mem.intr.irq(interrupt::IRQ_TIMER),
-      None => (),
-    }
+      match cpu.mem.timer.tick(cycles) {
+        Some(timer::TIMAOverflow) => cpu.mem.intr.irq(interrupt::IRQ_TIMER),
+        None => (),
+      }
 
-    let mut new_frame = false;
-    match cpu.mem.video.tick(cycles) {
-      Some(video::DMA(base)) => {
-        // Do DMA transfer instantaneously
-        let base_addr = base as u16 << 8;
-        for offset in range(0x00u16, 0xa0u16) {
-          let val = cpu.mem.loadb(base_addr + offset);
-          cpu.mem.storeb(0xfe00 + offset, val);
+      let mut new_frame = false;
+      match cpu.mem.video.tick(cycles) {
+        Some(video::DMA(base)) => {
+          // Do DMA transfer instantaneously
+          let base_addr = base as u16 << 8;
+          for offset in range(0x00u16, 0xa0u16) {
+            let val = cpu.mem.loadb(base_addr + offset);
+            cpu.mem.storeb(0xfe00 + offset, val);
+          }
+        },
+        Some(video::VBlank) => {
+          video_out.blit_and_present(cpu.mem.video.screen);
+          cpu.mem.intr.irq(interrupt::IRQ_VBLANK);
+          new_frame = true;
         }
-      },
-      Some(video::VBlank) => {
-        video_out.blit_and_present(cpu.mem.video.screen);
-        cpu.mem.intr.irq(interrupt::IRQ_VBLANK);
-        new_frame = true;
+        Some(video::LCD)    => cpu.mem.intr.irq(interrupt::IRQ_LCD),
+        None => (),
       }
-      Some(video::LCD)    => cpu.mem.intr.irq(interrupt::IRQ_LCD),
-      None => (),
+
+      // Synchronize speed based on frame time
+      if new_frame {
+        let now = sdl2::timer::get_performance_counter();
+        let frame_time = now - last_frame_start_count;
+        if frame_time < counts_per_frame {
+          let delay_msec = (1_000 * (counts_per_frame - frame_time) / counts_per_sec) as uint;
+          sdl2::timer::delay(delay_msec);
+        }
+        // TODO: What should we do when we take longer than counts_per_frame?
+        last_frame_start_count = sdl2::timer::get_performance_counter();
+
+        frames += 1;
+        if last_frame_start_count - last_fps_update > counts_per_sec {
+          let fps = frames * (last_frame_start_count - last_fps_update) / counts_per_sec;
+          video_out.set_title(format!("Rustboy - {} fps", fps));
+          last_fps_update = now;
+          frames = 0;
+        }
+
+        // Exit emulation loop to handle events
+        break;
+      }
+
+      if debugger.should_break(&cpu) {
+        state = Paused;
+        break;
+      }
+
+      if state == Step {
+        // Stop emulation loop after one instruction
+        break;
+      }
     }
 
-    // Synchronize speed based on frame time
-    if new_frame {
-      let now = sdl2::timer::get_performance_counter();
-
-      frames += 1;
-      if now - last_fps_update > counts_per_sec {
-        let fps = frames * (now - last_fps_update) / counts_per_sec;
-        video_out.set_title(format!("Rustboy - {} fps", fps));
-        last_fps_update = now;
-        frames = 0;
-      }
-
-      let frame_time = now - last_frame_start_count;
-      if frame_time < counts_per_frame {
-        let delay_msec = (1_000 * (counts_per_frame - frame_time) / counts_per_sec) as uint;
-        sdl2::timer::delay(delay_msec);
-      }
-      // TODO: What should we do when we take longer than counts_per_frame?
-      last_frame_start_count = sdl2::timer::get_performance_counter();
-    }
-
+    // Event handling loop
     loop {
       match sdl2::event::poll_event() {
-        sdl2::event::QuitEvent(_) => { done = true; break }
+        sdl2::event::QuitEvent(_) => { state = Done; break }
         sdl2::event::KeyDownEvent(_, _, key, _, _) => {
           match keymap(key) {
             Some(button) => cpu.mem.joypad.set_button(button, true),
             None => {
               match key {
-                sdl2::keycode::EscapeKey => { running = false },
+                sdl2::keycode::EscapeKey => { state = Paused },
                 _ => (),
               }
             }
