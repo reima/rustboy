@@ -8,6 +8,7 @@ mod cpu;
 mod debug;
 mod disasm;
 mod interrupt;
+mod joypad;
 mod mem;
 mod ram;
 mod serial;
@@ -39,6 +40,7 @@ struct MemMap {
   sound: sound::Sound,
   video: video::Video,
   serial: serial::SerialIO,
+  joypad: joypad::Joypad,
   dummy: Dummy,
 }
 
@@ -55,6 +57,7 @@ impl MemMap {
       0xc000..0xfdff | // WRAM (including echo area 0xe000-0xfdff)
       0xff80..0xfffe   // HRAM
                       => &mut self.wram as &mut Mem,
+      0xff00          => &mut self.joypad as &mut Mem,
       0xff01..0xff02  => &mut self.serial as &mut Mem,
       0xff04..0xff07  => &mut self.timer as &mut Mem,
       0xff0f | 0xffff => &mut self.intr as &mut Mem,
@@ -127,6 +130,21 @@ impl VideoOut {
 }
 
 
+fn keymap(code: sdl2::keycode::KeyCode) -> Option<joypad::Button> {
+  match code {
+    sdl2::keycode::UpKey     => Some(joypad::Up),
+    sdl2::keycode::DownKey   => Some(joypad::Down),
+    sdl2::keycode::LeftKey   => Some(joypad::Left),
+    sdl2::keycode::RightKey  => Some(joypad::Right),
+    sdl2::keycode::ReturnKey => Some(joypad::Start),
+    sdl2::keycode::RShiftKey => Some(joypad::Select),
+    sdl2::keycode::CKey      => Some(joypad::ButtonA),
+    sdl2::keycode::XKey      => Some(joypad::ButtonB),
+    _ => None,
+  }
+}
+
+
 fn main() {
   let args = std::os::args();
   if args.len() != 2 && !(args.len() == 3 && args[1] == ~"-d") {
@@ -169,12 +187,13 @@ fn main() {
     sound: sound::Sound,
     video: video::Video::new(),
     serial: serial::SerialIO::new(Some(~stdio::stdout() as ~std::io::Writer)),
+    joypad: joypad::Joypad::new(),
     dummy: Dummy,
   };
   let mut cpu = cpu::Cpu::new(memmap);
   cpu.regs.pc = 0x100;
 
-  let video_out = VideoOut::new(2);
+  let video_out = VideoOut::new(4);
   video_out.set_title("Rustboy");
 
   let mut done = false;
@@ -237,15 +256,27 @@ fn main() {
         sdl2::timer::delay(delay_msec);
       }
       // TODO: What should we do when we take longer than counts_per_frame?
-      last_frame_start_count = now;
+      last_frame_start_count = sdl2::timer::get_performance_counter();
     }
 
     loop {
       match sdl2::event::poll_event() {
         sdl2::event::QuitEvent(_) => { done = true; break }
         sdl2::event::KeyDownEvent(_, _, key, _, _) => {
-          if key == sdl2::keycode::PKey {
-            running = false;
+          match keymap(key) {
+            Some(button) => cpu.mem.joypad.set_button(button, true),
+            None => {
+              match key {
+                sdl2::keycode::EscapeKey => { running = false },
+                _ => (),
+              }
+            }
+          }
+        },
+        sdl2::event::KeyUpEvent(_, _, key, _, _) => {
+          match keymap(key) {
+            Some(button) => cpu.mem.joypad.set_button(button, false),
+            None => (),
           }
         }
         sdl2::event::NoEvent => break,
