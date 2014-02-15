@@ -225,19 +225,24 @@ impl Video {
   }
 
   fn draw_obj_row(&mut self, row: uint) {
-    // TODO: 8x16 obj support
-
     // Obj with coordinates (OFFSET_X, OFFSET_Y) is at (0, 0) on screen
     static OFFSET_X: uint = 8;
     static OFFSET_Y: uint = 16;
 
     static MAX_OBJS_PER_ROW: uint = 10;
 
+    let obj_height =
+      if (self.flags & FLAG_OBJ_SIZE) != 0 {
+        2 * TILE_HEIGHT
+      } else {
+        TILE_HEIGHT
+      };
+
     // Find objs in this row
     let mut objs = ~[];
     for obj_num in range(0, 40) {
       let obj_y = self.oam[obj_num * 4] as uint;
-      if obj_y <= row + OFFSET_Y && row + OFFSET_Y < obj_y + TILE_HEIGHT {
+      if obj_y <= row + OFFSET_Y && row + OFFSET_Y < obj_y + obj_height {
         objs.push(obj_num);
       }
     }
@@ -256,12 +261,26 @@ impl Video {
 
     // Draw objs
     for obj in objs.iter() {
-      let obj_y =     self.oam[(*obj) * 4] as uint;
-      let obj_x =     self.oam[(*obj) * 4 + 1] as uint;
-      let obj_tile =  self.oam[(*obj) * 4 + 2] as uint;
-      let obj_flags = self.oam[(*obj) * 4 + 3];
-      let tile = self.vram.slice_from(TILES_BASE1 + obj_tile*TILE_BYTES);
+      let obj_y        = self.oam[(*obj) * 4] as uint;
+      let obj_x        = self.oam[(*obj) * 4 + 1] as uint;
+      let mut obj_tile = self.oam[(*obj) * 4 + 2] as uint;
+      let obj_flags    = self.oam[(*obj) * 4 + 3];
       let mut tile_row = row - obj_y + OFFSET_Y;
+
+      if (self.flags & FLAG_OBJ_SIZE) != 0 {
+        // 8x16 objs
+        let flip_y = (obj_flags & OBJ_FLAG_FLIP_Y) != 0;
+        if (tile_row < TILE_HEIGHT && !flip_y) ||
+           (tile_row >= TILE_HEIGHT && flip_y) {
+          obj_tile &= !1; // upper subtile
+        } else {
+          obj_tile |= 1;  // lower subtile
+        }
+        tile_row %= TILE_HEIGHT;
+      }
+
+      let tile = self.vram.slice_from(TILES_BASE1 + obj_tile*TILE_BYTES);
+
       if (obj_flags & OBJ_FLAG_FLIP_Y) != 0 {
         tile_row = TILE_HEIGHT - 1 - tile_row;
       }
