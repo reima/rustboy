@@ -9,9 +9,9 @@ static MODE1_CYCLES: uint = 4560;  // V-Blank
 static MODE2_CYCLES: uint = 80;    // Transfer to LCD
 static MODE3_CYCLES: uint = 172;   // Transfer to LCD
 
-static MODE0_START: uint = MODE0_CYCLES;
-static MODE2_START: uint = MODE0_START + MODE0_CYCLES;
+static MODE2_START: uint = 0;
 static MODE3_START: uint = MODE2_START + MODE2_CYCLES;
+static MODE0_START: uint = MODE3_START + MODE3_CYCLES;
 
 static ROW_CYCLES: uint = MODE0_CYCLES + MODE2_CYCLES + MODE3_CYCLES;
 
@@ -23,6 +23,7 @@ static STAT_MODE2_IRQ: u8        = 0b0010_0000;
 static STAT_COINCIDENCE_IRQ: u8  = 0b0100_0000;
 static STAT_IRQ_MASK: u8         = 0b0111_1000;
 static STAT_COINCIDENCE_FLAG: u8 = 0b0000_0100;
+static STAT_MODE_MASK: u8        = 0b0000_0011;
 
 static FLAG_ENABLE_BG_WIN: u8 = 0b0000_0001;
 static FLAG_ENABLE_OBJ: u8    = 0b0000_0010;
@@ -60,8 +61,9 @@ pub struct Video {
   // Implementation state
   cycles: uint, // internal cycle count, wraps around at SCREEN_REFRESH_CYCLES
 
-  mode: u8,  // LCD mode (0-3)
+  mode: u8,  // LCD mode (0-3), cycles through [2, 3, 0] for each row
   dma: u8,   // DMA request, 0xff = no request, 0x00-0xf1 = requested base address
+  wy_saved: u8, // WY register at the start of the frame (changes during frame have no effect)
 
   // Registers
   flags: u8, // LCDC register
@@ -101,6 +103,7 @@ impl Video {
       cycles: 0,
       mode: 0,
       dma: 0xff,
+      wy_saved: 0,
       flags: 0x91,
       stat: 0,
       ly: 0,
@@ -128,9 +131,9 @@ impl Video {
     self.mode =
       if self.ly < SCREEN_HEIGHT as u8 {
         match self.cycles % ROW_CYCLES {
-          MODE0_START .. (MODE2_START - 1) => 0,
           MODE2_START .. (MODE3_START - 1) => 2,
-          _                                => 3,
+          MODE3_START .. (MODE0_START - 1) => 3,
+          _                                => 0,
         }
       } else {
         1 // V-Blank
@@ -146,14 +149,19 @@ impl Video {
 
     // TODO: Implement behavior according to http://gameboy.mongenel.com/dmg/istat98.txt
 
+    if old_mode == 3 && self.mode == 0 {
+      // H-Blank
+      self.draw_row(self.ly as uint);
+    }
+
+    if old_mode == 1 && self.mode == 2 {
+      // Beginning of new frame
+      self.wy_saved = self.wy;
+    }
+
     if self.mode != old_mode {
       if self.mode == 1 {
         return Some(VBlank) // TODO: Also generate LCD interrupt if STAT_MODE1_IRQ is set
-      }
-
-      if self.mode == 0 {
-        // H-Blank
-        self.draw_row(self.ly as uint);
       }
 
       match self.mode {
@@ -181,7 +189,7 @@ impl Video {
       self.stat &= !STAT_COINCIDENCE_FLAG;
     }
     // Mode flag
-    self.stat = (self.stat & (STAT_IRQ_MASK | STAT_COINCIDENCE_FLAG)) | self.mode;
+    self.stat = (self.stat & !STAT_MODE_MASK) | self.mode;
   }
 
   fn draw_row(&mut self, row: uint) {
