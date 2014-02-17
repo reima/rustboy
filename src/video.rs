@@ -121,7 +121,9 @@ impl Video {
     }
   }
 
-  pub fn tick(&mut self, cycles: u8) -> Option<Signal> {
+  pub fn tick(&mut self, cycles: u8) -> ~[Signal] {
+    let mut signals = ~[];
+
     let old_ly = self.ly;
     let old_mode = self.mode;
 
@@ -142,9 +144,8 @@ impl Video {
     self.update_stat();
 
     if self.dma != 0xff {
-      let base = self.dma;
+      signals.push(DMA(self.dma));
       self.dma = 0xff;
-      return Some(DMA(base));
     }
 
     // TODO: Implement behavior according to http://gameboy.mongenel.com/dmg/istat98.txt
@@ -159,15 +160,17 @@ impl Video {
       self.wy_saved = self.wy;
     }
 
+    let mut lcd_intr = false;
+
     if self.mode != old_mode {
       if self.mode == 1 {
-        return Some(VBlank) // TODO: Also generate LCD interrupt if STAT_MODE1_IRQ is set
+        signals.push(VBlank);
       }
 
       match self.mode {
-        0 => if self.stat & STAT_MODE0_IRQ != 0 { return Some(LCD) },
-        1 => if self.stat & STAT_MODE1_IRQ != 0 { return Some(LCD) },
-        2 => if self.stat & STAT_MODE2_IRQ != 0 { return Some(LCD) },
+        0 => if self.stat & STAT_MODE0_IRQ != 0 { lcd_intr = true },
+        1 => if self.stat & STAT_MODE1_IRQ != 0 { lcd_intr = true },
+        2 => if self.stat & STAT_MODE2_IRQ != 0 { lcd_intr = true },
         _ => (),
       }
     }
@@ -175,10 +178,14 @@ impl Video {
     if self.ly != old_ly &&
        (self.stat & STAT_COINCIDENCE_IRQ != 0) &&
        (self.stat & STAT_COINCIDENCE_FLAG != 0) {
-      return Some(LCD);
+      lcd_intr = true;
     }
 
-    None
+    if lcd_intr {
+      signals.push(LCD);
+    }
+
+    signals
   }
 
   fn update_stat(&mut self) {

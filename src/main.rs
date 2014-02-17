@@ -235,22 +235,24 @@ fn main() {
       }
 
       let mut new_frame = false;
-      match cpu.mem.video.tick(cycles) {
-        Some(video::DMA(base)) => {
-          // Do DMA transfer instantaneously
-          let base_addr = base as u16 << 8;
-          for offset in range(0x00u16, 0xa0u16) {
-            let val = cpu.mem.loadb(base_addr + offset);
-            cpu.mem.storeb(0xfe00 + offset, val);
+      let video_signals = cpu.mem.video.tick(cycles);
+      for signal in video_signals.iter() {
+        match *signal {
+          video::DMA(base) => {
+            // Do DMA transfer instantaneously
+            let base_addr = base as u16 << 8;
+            for offset in range(0x00u16, 0xa0u16) {
+              let val = cpu.mem.loadb(base_addr + offset);
+              cpu.mem.storeb(0xfe00 + offset, val);
+            }
+          },
+          video::VBlank => {
+            video_out.blit_and_present(cpu.mem.video.screen);
+            cpu.mem.intr.irq(interrupt::IRQ_VBLANK);
+            new_frame = true;
           }
-        },
-        Some(video::VBlank) => {
-          video_out.blit_and_present(cpu.mem.video.screen);
-          cpu.mem.intr.irq(interrupt::IRQ_VBLANK);
-          new_frame = true;
+          video::LCD    => cpu.mem.intr.irq(interrupt::IRQ_LCD),
         }
-        Some(video::LCD)    => cpu.mem.intr.irq(interrupt::IRQ_LCD),
-        None => (),
       }
 
       // Synchronize speed based on frame time
