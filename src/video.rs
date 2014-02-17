@@ -301,6 +301,7 @@ impl Video {
       let mut obj_tile = self.oam[(*obj) * 4 + 2] as uint;
       let obj_flags    = self.oam[(*obj) * 4 + 3];
       let mut tile_y = screen_y - obj_y + OFFSET_Y;
+      let pal = if (obj_flags & OBJ_FLAG_PALETTE) == 0 { self.obp0 } else { self.obp1 };
 
       if (self.flags & FLAG_OBJ_SIZE) != 0 {
         // 8x16 objs
@@ -314,11 +315,12 @@ impl Video {
         tile_y %= TILE_HEIGHT;
       }
 
-      let tile = self.vram.slice_from(TILES_BASE1 + obj_tile*TILE_BYTES);
-
       if (obj_flags & OBJ_FLAG_FLIP_Y) != 0 {
         tile_y = TILE_HEIGHT - 1 - tile_y;
       }
+
+      let tile = self.vram.slice_from(TILES_BASE1 + obj_tile*TILE_BYTES);
+
       for tile_x in range(0, TILE_WIDTH) {
         let screen_x = obj_x + tile_x;
         if OFFSET_X <= screen_x && screen_x < SCREEN_WIDTH + OFFSET_X {
@@ -326,7 +328,7 @@ impl Video {
           if (obj_flags & OBJ_FLAG_FLIP_X) != 0 {
             tile_x = TILE_WIDTH - 1 - tile_x;
           }
-          unpack_tile_pixel(tile, self.obp0, tile_x, tile_y, pixel, true);
+          unpack_tile_pixel(tile, pal, tile_x, tile_y, pixel, true);
         }
       }
     }
