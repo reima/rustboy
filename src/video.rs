@@ -194,7 +194,7 @@ impl Video {
 
   fn draw_row(&mut self, row: uint) {
     if (self.flags & FLAG_ENABLE_BG_WIN) != 0 {
-      self.draw_bg_row(row);
+      self.draw_bg_win_row(row);
     }
 
     if (self.flags & FLAG_ENABLE_OBJ) != 0 {
@@ -202,37 +202,64 @@ impl Video {
     }
   }
 
-  fn draw_bg_row(&mut self, row: uint) {
+  fn draw_bg_win_row(&mut self, screen_y: uint) {
+    static WIN_OFFSET_X: uint = 7;
+
     let mut tiles_base = TILES_BASE0;
     let mut tiles_bias = TILES_BIAS0;
-    let mut map_base = BG_WIN_MAP_BASE0;
-
     if (self.flags & FLAG_BG_WIN_TILES) != 0 {
       tiles_base = TILES_BASE1;
       tiles_bias = TILES_BIAS1;
     }
-    if (self.flags & FLAG_BG_MAP) != 0 {
-      map_base = BG_WIN_MAP_BASE1;
-    }
 
-    let pal = self.bgp;
+    let bg_map_base =
+      if (self.flags & FLAG_BG_MAP) == 0 {
+        BG_WIN_MAP_BASE0
+      } else {
+        BG_WIN_MAP_BASE1
+      };
 
-    let y = row;
-    let bg_y = (y + self.scy as uint) % (BG_HEIGHT_TILES * TILE_HEIGHT);
-    let bg_tile_y = bg_y / TILE_HEIGHT;
-    for x in range(0u, SCREEN_WIDTH) {
-      let bg_x = (x + self.scx as uint) % (BG_WIDTH_TILES * TILE_WIDTH);
-      let bg_tile_x = bg_x / TILE_WIDTH;
-      let tile_num = (self.vram[map_base + bg_tile_y*BG_WIDTH_TILES + bg_tile_x] + tiles_bias) as uint;
+    let win_map_base =
+      if (self.flags & FLAG_WIN_MAP) == 0 {
+        BG_WIN_MAP_BASE0
+      } else {
+        BG_WIN_MAP_BASE1
+      };
+
+    let draw_win = (self.flags & FLAG_ENABLE_WIN) != 0 && self.wy_saved as uint <= screen_y;
+
+    let bg_map_y = (screen_y + self.scy as uint) % (BG_HEIGHT_TILES * TILE_HEIGHT);
+    let win_map_y = screen_y - self.wy_saved as uint;
+
+    for screen_x in range(0u, SCREEN_WIDTH) {
+      let mut map_base;
+      let mut map_x;
+      let mut map_y;
+
+      if draw_win && screen_x + WIN_OFFSET_X >= self.wx as uint {
+        map_base = win_map_base;
+        map_x = (screen_x + WIN_OFFSET_X - self.wx as uint);
+        map_y = win_map_y;
+      } else {
+        map_base = bg_map_base;
+        map_x = (screen_x + self.scx as uint) % (BG_WIDTH_TILES * TILE_WIDTH);
+        map_y = bg_map_y;
+      }
+
+      let pixel = self.screen.mut_slice_from((screen_y * SCREEN_WIDTH + screen_x) * 4);
+      let map_tile_x = map_x / TILE_WIDTH;
+      let map_tile_y = map_y / TILE_HEIGHT;
+      let tile_num = (self.vram[map_base + map_tile_y*BG_WIDTH_TILES + map_tile_x] + tiles_bias) as uint;
       let tile = self.vram.slice_from(tiles_base + tile_num*TILE_BYTES);
-      let pixel = self.screen.mut_slice_from((y * SCREEN_WIDTH + x) * 4);
-      let tile_row = bg_y % TILE_HEIGHT;
-      let tile_col = bg_x % TILE_WIDTH;
-      unpack_tile_pixel(tile, pal, tile_row, tile_col, pixel, false);
+
+      let tile_x = map_x % TILE_WIDTH;
+      let tile_y = map_y % TILE_HEIGHT;
+
+      unpack_tile_pixel(tile, self.bgp, tile_x, tile_y, pixel, false);
     }
   }
 
-  fn draw_obj_row(&mut self, row: uint) {
+  fn draw_obj_row(&mut self, screen_y: uint) {
     // Obj with coordinates (OFFSET_X, OFFSET_Y) is at (0, 0) on screen
     static OFFSET_X: uint = 8;
     static OFFSET_Y: uint = 16;
@@ -250,7 +277,7 @@ impl Video {
     let mut objs = ~[];
     for obj_num in range(0, 40) {
       let obj_y = self.oam[obj_num * 4] as uint;
-      if obj_y <= row + OFFSET_Y && row + OFFSET_Y < obj_y + obj_height {
+      if obj_y <= screen_y + OFFSET_Y && screen_y + OFFSET_Y < obj_y + obj_height {
         objs.push(obj_num);
       }
     }
@@ -273,33 +300,33 @@ impl Video {
       let obj_x        = self.oam[(*obj) * 4 + 1] as uint;
       let mut obj_tile = self.oam[(*obj) * 4 + 2] as uint;
       let obj_flags    = self.oam[(*obj) * 4 + 3];
-      let mut tile_row = row - obj_y + OFFSET_Y;
+      let mut tile_y = screen_y - obj_y + OFFSET_Y;
 
       if (self.flags & FLAG_OBJ_SIZE) != 0 {
         // 8x16 objs
         let flip_y = (obj_flags & OBJ_FLAG_FLIP_Y) != 0;
-        if (tile_row < TILE_HEIGHT && !flip_y) ||
-           (tile_row >= TILE_HEIGHT && flip_y) {
+        if (tile_y < TILE_HEIGHT && !flip_y) ||
+           (tile_y >= TILE_HEIGHT && flip_y) {
           obj_tile &= !1; // upper subtile
         } else {
           obj_tile |= 1;  // lower subtile
         }
-        tile_row %= TILE_HEIGHT;
+        tile_y %= TILE_HEIGHT;
       }
 
       let tile = self.vram.slice_from(TILES_BASE1 + obj_tile*TILE_BYTES);
 
       if (obj_flags & OBJ_FLAG_FLIP_Y) != 0 {
-        tile_row = TILE_HEIGHT - 1 - tile_row;
+        tile_y = TILE_HEIGHT - 1 - tile_y;
       }
-      for tile_col in range(0, TILE_WIDTH) {
-        let x = obj_x + tile_col;
-        if OFFSET_X <= x && x < SCREEN_WIDTH + OFFSET_X {
-          let pixel = self.screen.mut_slice_from((row * SCREEN_WIDTH + x - OFFSET_X) * 4);
+      for tile_x in range(0, TILE_WIDTH) {
+        let screen_x = obj_x + tile_x;
+        if OFFSET_X <= screen_x && screen_x < SCREEN_WIDTH + OFFSET_X {
+          let pixel = self.screen.mut_slice_from((screen_y * SCREEN_WIDTH + screen_x - OFFSET_X) * 4);
           if (obj_flags & OBJ_FLAG_FLIP_X) != 0 {
-            tile_col = TILE_WIDTH - 1 - tile_col;
+            tile_x = TILE_WIDTH - 1 - tile_x;
           }
-          unpack_tile_pixel(tile, self.obp0, tile_row, tile_col, pixel, true);
+          unpack_tile_pixel(tile, self.obp0, tile_x, tile_y, pixel, true);
         }
       }
     }
@@ -354,8 +381,8 @@ impl mem::Mem for Video {
 
 fn unpack_tile_pixel(tile: &[u8],
                      palette: u8,
-                     row: uint,
-                     col: uint,
+                     x: uint,
+                     y: uint,
                      pixel: &mut [u8],
                      transp: bool) {
   static colors: &'static [& 'static[u8]] = &[
@@ -365,8 +392,8 @@ fn unpack_tile_pixel(tile: &[u8],
     &[8, 24, 32]
   ];
 
-  let low_bit  = (tile[2*row]   >> (7 - col)) & 1;
-  let high_bit = (tile[2*row+1] >> (7 - col)) & 1;
+  let low_bit  = (tile[2*y]   >> (7 - x)) & 1;
+  let high_bit = (tile[2*y+1] >> (7 - x)) & 1;
   let value = (high_bit << 1) | low_bit;
   let color = (palette >> (2 * value)) & 0b11;
 
