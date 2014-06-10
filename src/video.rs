@@ -86,7 +86,7 @@ pub struct Video {
   oam: [u8, ..0xa0],
 
   // Screen buffer
-  screen: [u8, ..SCREEN_WIDTH*SCREEN_HEIGHT*4],
+  pub screen: [u8, ..SCREEN_WIDTH*SCREEN_HEIGHT*4],
 }
 
 
@@ -121,8 +121,8 @@ impl Video {
     }
   }
 
-  pub fn tick(&mut self, cycles: u8) -> ~[Signal] {
-    let mut signals = ~[];
+  pub fn tick(&mut self, cycles: u8) -> Vec<Signal> {
+    let mut signals = vec!();
 
     let old_ly = self.ly;
     let old_mode = self.mode;
@@ -245,7 +245,7 @@ impl Video {
 
       if draw_win && screen_x + WIN_OFFSET_X >= self.wx as uint {
         map_base = win_map_base;
-        map_x = (screen_x + WIN_OFFSET_X - self.wx as uint);
+        map_x = screen_x + WIN_OFFSET_X - self.wx as uint;
         map_y = win_map_y;
       } else {
         map_base = bg_map_base;
@@ -281,8 +281,8 @@ impl Video {
       };
 
     // Find objs in this row
-    let mut objs = ~[];
-    for obj_num in range(0, 40) {
+    let mut objs = vec!();
+    for obj_num in range(0u, 40u) {
       let obj_y = self.oam[obj_num * 4] as uint;
       if obj_y <= screen_y + OFFSET_Y && screen_y + OFFSET_Y < obj_y + obj_height {
         objs.push(obj_num);
@@ -328,7 +328,7 @@ impl Video {
 
       let tile = self.vram.slice_from(TILES_BASE1 + obj_tile*TILE_BYTES);
 
-      for tile_x in range(0, TILE_WIDTH) {
+      for mut tile_x in range(0, TILE_WIDTH) {
         let screen_x = obj_x + tile_x;
         if OFFSET_X <= screen_x && screen_x < SCREEN_WIDTH + OFFSET_X {
           let pixel = self.screen.mut_slice_from((screen_y * SCREEN_WIDTH + screen_x - OFFSET_X) * 4);
@@ -345,8 +345,8 @@ impl Video {
 impl mem::Mem for Video {
   fn loadb(&mut self, addr: u16) -> u8 {
     match addr {
-      0x8000..0x9fff => self.vram[addr - 0x8000],
-      0xfe00..0xfe9f => self.oam[addr - 0xfe00], // OAM
+      0x8000..0x9fff => self.vram[(addr - 0x8000) as uint],
+      0xfe00..0xfe9f => self.oam[(addr - 0xfe00) as uint], // OAM
 
       // I/O registers
       0xff40 => self.flags,
@@ -367,8 +367,8 @@ impl mem::Mem for Video {
 
   fn storeb(&mut self, addr: u16, val: u8) {
     match addr {
-      0x8000..0x9fff => self.vram[addr - 0x8000] = val,
-      0xfe00..0xfe9f => self.oam[addr - 0xfe00] = val,
+      0x8000..0x9fff => self.vram[(addr - 0x8000) as uint] = val,
+      0xfe00..0xfe9f => self.oam[(addr - 0xfe00) as uint] = val,
 
       // I/O registers
       0xff40 => self.flags = val,
@@ -404,7 +404,7 @@ fn unpack_tile_pixel(tile: &[u8],
   let low_bit  = (tile[2*y]   >> (7 - x)) & 1;
   let high_bit = (tile[2*y+1] >> (7 - x)) & 1;
   let value = (high_bit << 1) | low_bit;
-  let color = (palette >> (2 * value)) & 0b11;
+  let color = ((palette >> (2 * value)) & 0b11) as uint;
 
   if transp && color == 0 {
     return;

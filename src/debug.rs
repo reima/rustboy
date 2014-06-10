@@ -9,7 +9,7 @@ use std::num::from_str_radix;
 // Debugger
 //
 
-fn disasm<M: Mem>(mem: &mut M, addr: &mut u16) -> ~str {
+fn disasm<M: Mem>(mem: &mut M, addr: &mut u16) -> String {
   let mut d = disasm::Disasm { mem: mem, pc: *addr };
   let result = cpu::decode(&mut d);
   *addr = d.pc;
@@ -70,7 +70,7 @@ fn print_regs<M>(cpu: &cpu::Cpu<M>) {
            cpu.cycles);
 }
 
-fn expand_tile_row(tile: &[u8], palette: u8, row: u8, pixels: &mut [u8]) {
+fn expand_tile_row(tile: &[u8], palette: u8, row: uint, pixels: &mut [u8]) {
   for col in range(0u, 8u) {
     let low_bit  = (tile[2*row]   >> (7 - col)) & 1;
     let high_bit = (tile[2*row+1] >> (7 - col)) & 1;
@@ -82,10 +82,10 @@ fn expand_tile_row(tile: &[u8], palette: u8, row: u8, pixels: &mut [u8]) {
 
 fn write_pgm(path: &Path, width: uint, height: uint, data: &[u8]) -> IoResult<()> {
   let mut output = File::create(path).unwrap();
-  if_ok!(output.write_line("P5"));
-  if_ok!(output.write_line(format!("{:u} {:u}", width, height)));
-  if_ok!(output.write_line("3"));
-  if_ok!(output.write(data));
+  try!(output.write_line("P5"));
+  try!(output.write_line(format!("{:u} {:u}", width, height).as_slice()));
+  try!(output.write_line("3"));
+  try!(output.write(data));
 
   Ok(())
 }
@@ -102,7 +102,7 @@ fn dump_tiles<M: Mem>(m: &mut M) -> IoResult<()> {
     let col = num % 16;
     let pixels = data.mut_slice_from((row * 16 * 8 + col)*8);
     for row in range(0u, 8u) {
-      expand_tile_row(tile, 0xe4, row as u8, pixels.mut_slice_from(16*8*row));
+      expand_tile_row(tile, 0xe4, row, pixels.mut_slice_from(16*8*row));
     }
   }
 
@@ -149,7 +149,7 @@ fn dump_bg<M: Mem>(m: &mut M) -> IoResult<()> {
       for tile_row in range(0u, 8u) {
         expand_tile_row(tile,
                         pal,
-                        tile_row as u8,
+                        tile_row,
                         pixels.mut_slice_from(tile_row*row_pitch));
       }
     }
@@ -169,7 +169,7 @@ fn parse_addr(s: &str) -> Option<u16> {
 }
 
 pub struct Debugger {
-  breakpoints: ~[u16],
+  breakpoints: Vec<u16>,
 }
 
 pub enum DebuggerCommand {
@@ -180,7 +180,7 @@ pub enum DebuggerCommand {
 
 impl Debugger {
   pub fn new() -> Debugger {
-    Debugger { breakpoints: ~[] }
+    Debugger { breakpoints: vec!() }
   }
 
   fn show_breakpoints(&self) {
@@ -213,44 +213,44 @@ impl Debugger {
     }
   }
 
-  fn dispatch<M: Mem>(&mut self, cpu: &mut cpu::Cpu<M>, words: &[&str]) -> Option<DebuggerCommand> {
+  fn dispatch<M: Mem>(&mut self, cpu: &mut cpu::Cpu<M>, words: Vec<&str>) -> Option<DebuggerCommand> {
     if words.len() == 0 {
       return None;
     }
 
-    let command = words[0];
+    let command = *words.get(0);
     match command {
-      &"q" => Some(Quit), // quit
-      &"s" => Some(Step), // step
-      &"r" => Some(Run), // run
-      &"regs" => { print_regs(cpu); None }, // print registers
-      &"m" => { // print memory
+      "q" => Some(Quit), // quit
+      "s" => Some(Step), // step
+      "r" => Some(Run), // run
+      "regs" => { print_regs(cpu); None }, // print registers
+      "m" => { // print memory
         if words.len() >= 2 {
-          match parse_addr(words[1]) {
+          match parse_addr(*words.get(1)) {
             Some(addr) => print_mem(&mut cpu.mem, addr),
-            None       => error!("Invalid address: {:s}", words[1]),
+            None       => error!("Invalid address: {:s}", *words.get(1)),
           }
         }
         None
       },
-      &"d" => { // disasm
+      "d" => { // disasm
         let mut addr = cpu.regs.pc;
         if words.len() >= 2 {
-          match parse_addr(words[1]) {
+          match parse_addr(*words.get(1)) {
             Some(a) => addr = a,
-            None    => error!("Invalid address: {:s}", words[1]),
+            None    => error!("Invalid address: {:s}", *words.get(1)),
           }
         }
         disassemble(&mut cpu.mem, addr);
         None
       },
-      &"b" => { // breakpoint
+      "b" => { // breakpoint
         if words.len() == 1 {
           self.show_breakpoints();
         } else if words.len() >= 2 {
           // add/remove breakpoint
           let mut add = true;
-          let mut arg = words[1];
+          let mut arg = *words.get(1);
           if arg.starts_with("-") {
             arg = arg.slice_from(1);
             add = false;
@@ -263,19 +263,19 @@ impl Debugger {
                 self.remove_breakpoint(addr);
               }
             },
-            None => error!("Invalid address: {:s}", words[1]),
+            None => error!("Invalid address: {:s}", *words.get(1)),
           }
         }
         None
       },
-      &"tiles" => { // dump video tiles
+      "tiles" => { // dump video tiles
         match dump_tiles(&mut cpu.mem) {
           Err(e) => error!("I/O error: {:s}", e.to_str()),
           _ => (),
         }
         None
       },
-      &"bg" => { // dump video bg
+      "bg" => { // dump video bg
         match dump_bg(&mut cpu.mem) {
           Err(e) => error!("I/O error: {:s}", e.to_str()),
           _ => (),
@@ -297,7 +297,7 @@ impl Debugger {
       stdio::flush();
       match stdin.read_line() {
         Ok(line) => {
-          let words = line.words().to_owned_vec();
+          let words = line.as_slice().words().collect::<Vec<&str>>();
           match self.dispatch(cpu, words) {
             Some(command) => return command,
             None => (),

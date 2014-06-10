@@ -23,16 +23,16 @@ pub static CYCLES_PER_SEC: uint = 4194304; // 4.194304 MHz
 //
 
 pub struct Regs {
-  a: u8,
-  b: u8,
-  c: u8,
-  d: u8,
-  e: u8,
-  h: u8,
-  l: u8,
-  f: u8,
-  sp: u16,
-  pc: u16,
+  pub a: u8,
+  pub b: u8,
+  pub c: u8,
+  pub d: u8,
+  pub e: u8,
+  pub h: u8,
+  pub l: u8,
+  pub f: u8,
+  pub sp: u16,
+  pub pc: u16,
 }
 
 impl Regs {
@@ -46,7 +46,7 @@ impl Regs {
 // Instruction decoding
 //
 
-#[deriving(ToStr)]
+#[deriving(Show)]
 pub enum Reg8 {
   A, B, C, D, E, H, L
 }
@@ -77,7 +77,7 @@ impl<M: mem::Mem> Reg8 {
   }
 }
 
-#[deriving(ToStr)]
+#[deriving(Show)]
 pub enum Reg16 {
   AF, BC, DE, HL, SP, PC
 }
@@ -547,11 +547,11 @@ pub fn decode<R, D: Decoder<R>>(d: &mut D) -> R {
 //
 
 pub struct Cpu<M> {
-  regs: Regs,
+  pub regs: Regs,
   ime: bool,
   halted: bool,
-  cycles: u64,
-  mem: M,
+  pub cycles: u64,
+  pub mem: M,
 }
 
 impl<M: mem::Mem> Cpu<M> {

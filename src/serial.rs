@@ -10,11 +10,11 @@ static SERIAL_TRANSFER_FLAG: u8 = 0x80;
 pub struct SerialIO {
   data: u8, // SB register
   control: u8, // SC register
-  writer: Option<~Writer>,
+  writer: Option<Box<Writer>>,
 }
 
 impl SerialIO {
-  pub fn new(writer: Option<~Writer>) -> SerialIO {
+  pub fn new(writer: Option<Box<Writer>>) -> SerialIO {
     SerialIO { data: 0, control: 0, writer: writer }
   }
 }

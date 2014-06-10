@@ -12,12 +12,12 @@ pub trait Mem {
   }
 }
 
-impl Mem for ~[u8] {
+impl Mem for Vec<u8> {
   fn loadb(&mut self, addr: u16) -> u8 {
-    self[addr]
+    *self.get(addr as uint)
   }
 
   fn storeb(&mut self, addr: u16, val: u8) {
-    self[addr] = val
+    *self.get_mut(addr as uint) = val;
   }
 }

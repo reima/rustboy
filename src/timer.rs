@@ -42,7 +42,7 @@ impl Timer {
     self.div_cycles += cycles as u16;
     if (self.tac & TIMER_START_FLAG) != 0 {
       self.tima_cycles_mod += cycles as u16;
-      let shift = TIMA_CYCLE_SHIFT[self.tac & TIMER_INPUT_CLOCK_MASK];
+      let shift = TIMA_CYCLE_SHIFT[(self.tac & TIMER_INPUT_CLOCK_MASK) as uint];
       let increment = self.tima_cycles_mod >> shift;
       if increment != 0 {
         // TIMA must be incremented

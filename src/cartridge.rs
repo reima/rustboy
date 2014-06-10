@@ -1,4 +1,5 @@
 use mem::Mem;
+use std::cmp;
 use std::io::{File, IoResult, SeekSet};
 
 static HEADER_OFFSET: i64 = 0x100;
@@ -9,13 +10,13 @@ enum MBC {
 }
 
 pub struct Cartridge {
-  title: ~str,
-  cartridge_type: u8,
-  rom_size: u8,
-  ram_size: u8,
-  rom_banks: ~[~[u8]],
-  rom_bank: u8,
-  mbc: Option<MBC>,
+  pub title: String,
+  pub cartridge_type: u8,
+  pub rom_size: u8,
+  pub ram_size: u8,
+  pub rom_banks: Vec<Vec<u8>>,
+  pub rom_bank: u8,
+  pub mbc: Option<MBC>,
 }
 
 impl Cartridge {
@@ -25,13 +26,12 @@ impl Cartridge {
 
   fn from_file(file: &mut File) -> IoResult<Cartridge> {
     use std::str;
-    use std::vec;
 
     let mut header = [0, ..80];
-    if_ok!(file.seek(HEADER_OFFSET, SeekSet));
-    if_ok!(file.read(header));
+    try!(file.seek(HEADER_OFFSET, SeekSet));
+    try!(file.read(header));
 
-    let title = str::from_utf8(header.slice(0x34, 0x43)).unwrap().to_owned();
+    let title = str::from_utf8(header.slice(0x34, 0x43)).unwrap().to_string();
 
     let cartridge_type = header[0x47];
     let mbc =
@@ -50,13 +50,13 @@ impl Cartridge {
         0x54 => 96,
         _ => fail!("unsupported ROM size: 0x{:02X}", rom_size),
       };
-    let mut rom_banks = ~[];
+    let mut rom_banks = Vec::with_capacity(rom_bank_count);
 
-    if_ok!(file.seek(0, SeekSet));
+    try!(file.seek(0, SeekSet));
 
     for bank in range(0, rom_bank_count) {
-      let mut bank = vec::from_elem(ROM_BANK_SIZE, 0u8);
-      if_ok!(file.read(bank));
+      let mut bank = Vec::with_capacity(ROM_BANK_SIZE);
+      try!(file.push(ROM_BANK_SIZE, &mut bank));
       rom_banks.push(bank);
     }
 
@@ -82,8 +82,8 @@ impl Cartridge {
 impl Mem for Cartridge {
   fn loadb(&mut self, addr: u16) -> u8 {
     match addr {
-      0x0000..0x3fff => self.rom_banks[0].loadb(addr),
-      0x4000..0x7fff => self.rom_banks[self.rom_bank].loadb(addr - 0x4000),
+      0x0000..0x3fff => self.rom_banks.get_mut(0).loadb(addr),
+      0x4000..0x7fff => self.rom_banks.get_mut(self.rom_bank as uint).loadb(addr - 0x4000),
       0xa000..0xbfff => { debug!("RAM load at ${:04X}", addr); 0xff },
       _ => { debug!("unsupported cartridge address ${:04X}", addr); 0xff },
     }
@@ -96,7 +96,7 @@ impl Mem for Cartridge {
         match addr {
           0x0000..0x1fff => debug!("RAM enable"),
           0x2000..0x3fff => { // set lower 5 bits of ROM bank
-            let bank_bits_0_4 = (val & 0b11111).max(&1u8); // treat 0 as 1
+            let bank_bits_0_4 = cmp::max(val & 0b11111, 1u8); // treat 0 as 1
             self.rom_bank = (self.rom_bank & (0b11100000)) | bank_bits_0_4;
           },
           0x4000..0x5fff => { // set higher 2 bits of ROM bank

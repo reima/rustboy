@@ -1,4 +1,9 @@
-extern mod sdl2;
+#![feature(phase)]
+
+#[phase(plugin, link)]
+extern crate log;
+
+extern crate sdl2;
 
 use mem::Mem;
 use std::io::stdio;
@@ -33,7 +38,7 @@ impl Mem for Dummy {
 }
 
 struct MemMap {
-  cart: ~cartridge::Cartridge,
+  cart: Box<cartridge::Cartridge>,
   wram: ram::WorkRam,
   timer: timer::Timer,
   intr: interrupt::InterruptCtrl,
@@ -63,7 +68,6 @@ impl MemMap {
       0xff0f | 0xffff => &mut self.intr as &mut Mem,
       0xff10..0xff3f  => &mut self.sound as &mut Mem,
       _ => &mut self.dummy as &mut Mem,
-      //_ => fail!("unmapped memory at 0x{:04X}", addr),
     }
   }
 }
@@ -84,22 +88,22 @@ impl Mem for MemMap {
 //
 
 struct VideoOut {
-  renderer: ~sdl2::render::Renderer,
-  texture: ~sdl2::render::Texture,
+  renderer: Box<sdl2::render::Renderer<sdl2::video::Window>>,
+  texture: Box<sdl2::render::Texture>,
 }
 
 impl VideoOut {
   fn new(scale: int) -> VideoOut {
     use sdl2::render::Renderer;
 
-    sdl2::init([sdl2::InitVideo]);
+    sdl2::init(sdl2::InitVideo);
 
     let window_width = video::SCREEN_WIDTH as int * scale;
     let window_height = video::SCREEN_HEIGHT as int * scale;
 
     let renderer = match Renderer::new_with_window(window_width,
                                                    window_height,
-                                                   [sdl2::video::Resizable]) {
+                                                   sdl2::video::Resizable) {
       Ok(renderer) => renderer,
       Err(err) => fail!("Failed to create renderer: {}", err)
     };
@@ -112,7 +116,7 @@ impl VideoOut {
       Err(err) => fail!("Failed to create texture: {}", err),
     };
 
-    VideoOut { renderer: renderer, texture: texture }
+    VideoOut { renderer: box renderer, texture: box texture }
   }
 
   fn blit_and_present(&self, pixels: &[u8]) {
@@ -122,10 +126,7 @@ impl VideoOut {
   }
 
   fn set_title(&self, title: &str) {
-    match self.renderer.parent {
-      sdl2::render::Window(ref w) => w.set_title(title),
-      _ => (),
-    }
+    self.renderer.get_parent().set_title(title);
   }
 }
 
@@ -145,7 +146,7 @@ fn keymap(code: sdl2::keycode::KeyCode) -> Option<joypad::Button> {
 }
 
 
-#[deriving(Eq)]
+#[deriving(PartialEq)]
 enum State {
   Paused,
   Running,
@@ -155,22 +156,22 @@ enum State {
 
 fn main() {
   let args = std::os::args();
-  if args.len() != 2 && !(args.len() == 3 && args[1] == ~"-d") {
-    println!("Usage: {:s} [-d] rom.gb", args[0]);
+  if args.len() != 2 && !(args.len() == 3 && *args.get(1) == "-d".to_string()) {
+    println!("Usage: {:s} [-d] rom.gb", *args.get(0));
     return;
   }
 
   let mut disassemble = false;
   let path =
     if args.len() == 2 {
-      args[1]
+      args.get(1)
     } else {
       disassemble = true;
-      args[2]
+      args.get(2)
     };
 
-  let mut cart = match cartridge::Cartridge::from_path(&Path::new(path)) {
-    Ok(cart) => ~cart,
+  let mut cart = match cartridge::Cartridge::from_path(&Path::new(path.as_slice())) {
+    Ok(cart) => box cart,
     Err(e)   => fail!("I/O error: {:s}", e.to_str()),
   };
 
@@ -194,7 +195,7 @@ fn main() {
     intr: interrupt::InterruptCtrl::new(),
     sound: sound::Sound,
     video: video::Video::new(),
-    serial: serial::SerialIO::new(Some(~stdio::stdout() as ~std::io::Writer)),
+    serial: serial::SerialIO::new(Some(box stdio::stdout() as Box<std::io::Writer>)),
     joypad: joypad::Joypad::new(),
     dummy: Dummy,
   };
@@ -269,7 +270,7 @@ fn main() {
         frames += 1;
         if last_frame_start_count - last_fps_update > counts_per_sec {
           let fps = frames * (last_frame_start_count - last_fps_update) / counts_per_sec;
-          video_out.set_title(format!("Rustboy - {} fps", fps));
+          video_out.set_title(format!("Rustboy - {} fps", fps).as_slice());
           last_fps_update = now;
           frames = 0;
         }

@@ -5,7 +5,7 @@ use mem;
 //
 
 pub struct WorkRam {
-  priv data: [u8, ..0x207f] // 0x2000 WRAM + 0x7f HRAM
+  data: [u8, ..0x207f] // 0x2000 WRAM + 0x7f HRAM
 }
 
 impl WorkRam {
@@ -25,10 +25,10 @@ impl WorkRam {
 
 impl mem::Mem for WorkRam {
   fn loadb(&mut self, addr: u16) -> u8 {
-    self.data[self.internal_addr(addr)]
+    self.data[self.internal_addr(addr) as uint]
   }
 
   fn storeb(&mut self, addr: u16, val: u8) {
-    self.data[self.internal_addr(addr)] = val
+    self.data[self.internal_addr(addr) as uint] = val
   }
 }
