@@ -152,7 +152,8 @@ impl Video {
 
     if old_mode == 3 && self.mode == 0 {
       // H-Blank
-      self.draw_row(self.ly as uint);
+      let row = self.ly as uint;
+      self.draw_row(row);
     }
 
     if old_mode == 1 && self.mode == 2 {
@@ -404,7 +405,7 @@ fn unpack_tile_pixel(tile: &[u8],
   let low_bit  = (tile[2*y]   >> (7 - x)) & 1;
   let high_bit = (tile[2*y+1] >> (7 - x)) & 1;
   let value = (high_bit << 1) | low_bit;
-  let color = ((palette >> (2 * value)) & 0b11) as uint;
+  let color = ((palette >> (2 * value as uint)) & 0b11) as uint;
 
   if transp && color == 0 {
     return;

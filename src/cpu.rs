@@ -1,14 +1,13 @@
 use mem;
-use std::num::Bitwise;
 
 //
 // Statics
 //
 
-static CARRY_OFFSET:      u8 = 4;
-static HALF_CARRY_OFFSET: u8 = 5;
-static ADD_SUB_OFFSET:    u8 = 6;
-static ZERO_OFFSET:       u8 = 7;
+static CARRY_OFFSET:      uint = 4;
+static HALF_CARRY_OFFSET: uint = 5;
+static ADD_SUB_OFFSET:    uint = 6;
+static ZERO_OFFSET:       uint = 7;
 
 static CARRY_FLAG:        u8 = 1 << CARRY_OFFSET;
 static HALF_CARRY_FLAG:   u8 = 1 << HALF_CARRY_OFFSET;
@@ -589,7 +588,7 @@ impl<M: mem::Mem> Cpu<M> {
         self.push(Reg16(PC));                    // Push PC
         self.regs.pc = 0x40 + irq as u16 * 0x08; // Jump to ISR
         self.ime = false;                        // Disable interrupts
-        self.mem.storeb(0xff0f, request_mask & !(1 << irq)); // Clear IRQ flag
+        self.mem.storeb(0xff0f, request_mask & !(1 << irq as uint)); // Clear IRQ flag
         self.cycles += 20;
         return 20 // 5 machine cycles, according to GBCPUman.pdf
       }
@@ -618,7 +617,8 @@ impl<M: mem::Mem> Cpu<M> {
   fn add_(&mut self, a: u8, b: u8, c: u8) {
     let result = a as u32 + b as u32 + c as u32;
     self.regs.a = result as u8;
-    self.set_flag(ZERO_FLAG, self.regs.a == 0);
+    let zero = self.regs.a == 0;
+    self.set_flag(ZERO_FLAG, zero);
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, (((a & 0xf) + (b & 0xf) + c) & 0x10) != 0);
     self.set_flag(CARRY_FLAG, (result & 0x100) != 0);
@@ -628,7 +628,8 @@ impl<M: mem::Mem> Cpu<M> {
   fn sub_(&mut self, a: u8, b: u8, c: u8) {
     let result = a as u32 - b as u32 - c as u32;
     self.regs.a = result as u8;
-    self.set_flag(ZERO_FLAG, self.regs.a == 0);
+    let zero = self.regs.a == 0;
+    self.set_flag(ZERO_FLAG, zero);
     self.set_flag(ADD_SUB_FLAG, true);
     self.set_flag(HALF_CARRY_FLAG, (((a & 0xf) - (b & 0xf) - c) & 0x10) != 0); // ???
     self.set_flag(CARRY_FLAG, (result & 0x100) != 0); // ???
@@ -703,7 +704,8 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
 
   fn jr(&mut self, cond: Cond, rel: i8) -> u8 {
     if cond.eval(self) {
-      self.ld16(Reg16(PC), Imm16((self.regs.pc as i16 + rel as i16) as u16));
+      let addr = self.regs.pc as i16 + rel as i16;
+      self.ld16(Reg16(PC), Imm16(addr as u16));
     }
     8
   }
@@ -782,8 +784,10 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
   //
 
   fn add8(&mut self, src: Addr8) -> u8 {
+    let a = self.regs.a;
     let b = src.load(self);
-    self.add_(self.regs.a, b, 0);
+    self.add_(a, b, 0);
+
     4 + src.cycles()
   }
 
@@ -792,32 +796,43 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
     let op2 = src.load(self) as u32;
     let result = op1 + op2;
     dst.store(self, result as u16);
+
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, (((op1 & 0xfff) + (op2 & 0xfff)) & 0x1000) != 0);
     self.set_flag(CARRY_FLAG, (result & 0x10000) != 0);
+
     8
   }
 
   fn addsp(&mut self, rel: i8) -> u8 {
     self.regs.sp = self.addsp_(rel);
+
     16
   }
 
   fn adc(&mut self, src: Addr8) -> u8 {
+    let a = self.regs.a;
     let b = src.load(self);
-    self.add_(self.regs.a, b, (self.regs.f >> CARRY_OFFSET) & 1);
+    let c = (self.regs.f >> CARRY_OFFSET) & 1;
+    self.add_(a, b, c);
+
     4 + src.cycles()
   }
 
   fn sub(&mut self, src: Addr8) -> u8 {
+    let a = self.regs.a;
     let b = src.load(self);
-    self.sub_(self.regs.a, b, 0);
+    self.sub_(a, b, 0);
+
     4 + src.cycles()
   }
 
   fn sbc(&mut self, src: Addr8) -> u8 {
+    let a = self.regs.a;
     let b = src.load(self);
-    self.sub_(self.regs.a, b, (self.regs.f >> CARRY_OFFSET) & 1);
+    let c = (self.regs.f >> CARRY_OFFSET) & 1;
+    self.sub_(a, b, c);
+
     4 + src.cycles()
   }
 
@@ -825,59 +840,74 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
     let val = dst.load(self);
     let result = val + 1;
     dst.store(self, result);
+
     self.set_flag(ZERO_FLAG, result == 0);
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, val & 0xf == 0xf);
     // Note: carry flag not affected
+
     4 + 2 * dst.cycles()
   }
 
   fn inc16(&mut self, dst: Addr16) -> u8 {
     let val = dst.load(self);
     dst.store(self, val + 1);
+
     8
   }
 
   fn dec8(&mut self, dst: Addr8) -> u8 {
     let result = dst.load(self) - 1;
     dst.store(self, result);
+
     self.set_flag(ZERO_FLAG, result == 0);
     self.set_flag(ADD_SUB_FLAG, true);
     self.set_flag(HALF_CARRY_FLAG, result & 0xf == 0xf);
     // Note: carry flag is not affected
+
     4 + 2 * dst.cycles()
   }
 
   fn dec16(&mut self, dst: Addr16) -> u8 {
     let val = dst.load(self);
     dst.store(self, val - 1);
+    
     8
   }
 
   fn and(&mut self, src: Addr8) -> u8 {
     self.regs.a &= src.load(self);
-    self.set_flag(ZERO_FLAG, self.regs.a == 0);
+
+    let zero = self.regs.a == 0;
+    self.set_flag(ZERO_FLAG, zero);
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, true); // Yes, this is correct
     self.set_flag(CARRY_FLAG, false);
+
     4 + src.cycles()
   }
 
   fn or(&mut self, src: Addr8) -> u8 {
     self.regs.a |= src.load(self);
-    self.set_flag(ZERO_FLAG, self.regs.a == 0);
+
+    let zero = self.regs.a == 0;
+    self.set_flag(ZERO_FLAG, zero);
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, false);
     self.set_flag(CARRY_FLAG, false);
+
     4 + src.cycles()
   }
 
   fn xor(&mut self, src: Addr8) -> u8 {
     self.regs.a ^= src.load(self);
-    self.set_flag(ZERO_FLAG, self.regs.a == 0);
+
+    let zero = self.regs.a == 0;
+    self.set_flag(ZERO_FLAG, zero);
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, false);
     self.set_flag(CARRY_FLAG, false);
+
     4 + src.cycles()
   }
 
@@ -887,13 +917,16 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
     let b = src.load(self);
     self.sub_(a, b, 0);
     self.regs.a = a;
+
     4 + src.cycles()
   }
 
   fn cpl(&mut self) -> u8 {
     self.regs.a = !self.regs.a;
+    
     self.set_flag(ADD_SUB_FLAG, true);
     self.set_flag(HALF_CARRY_FLAG, true);
+
     4
   }
 
@@ -901,6 +934,7 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, false);
     self.set_flag(CARRY_FLAG, true);
+    
     4
   }
 
@@ -908,6 +942,7 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
     self.regs.f ^= CARRY_FLAG;
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, false);
+    
     4
   }
 
@@ -955,35 +990,45 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
 
   fn rlca(&mut self) -> u8 {
     self.rlc(Reg8(A));
+    
     self.set_flag(ZERO_FLAG, false);
+    
     4
   }
 
   fn rla(&mut self) -> u8 {
     self.rl(Reg8(A));
+    
     self.set_flag(ZERO_FLAG, false);
+    
     4
   }
 
   fn rrca(&mut self) -> u8 {
     self.rrc(Reg8(A));
+    
     self.set_flag(ZERO_FLAG, false);
+    
     4
   }
 
   fn rra(&mut self) -> u8 {
     self.rr(Reg8(A));
+    
     self.set_flag(ZERO_FLAG, false);
+    
     4
   }
 
   fn rlc(&mut self, dst: Addr8) -> u8 {
     let val = dst.load(self);
     dst.store(self, (val << 1) | ((val & 0x80) >> 7));
+    
     self.set_flag(ZERO_FLAG, val == 0); // zero iff zero before
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, false);
     self.set_flag(CARRY_FLAG, (val & 0x80) != 0);
+    
     8 + 2 * dst.cycles()
   }
 
@@ -991,20 +1036,24 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
     let val = dst.load(self);
     let result = (val << 1) | ((self.regs.f & CARRY_FLAG) >> CARRY_OFFSET);
     dst.store(self, result);
+    
     self.set_flag(ZERO_FLAG, result == 0);
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, false);
     self.set_flag(CARRY_FLAG, (val & 0x80) != 0);
+    
     8 + 2 * dst.cycles()
   }
 
   fn rrc(&mut self, dst: Addr8) -> u8 {
     let val = dst.load(self);
     dst.store(self, (val >> 1) | ((val & 0x01) << 7));
+    
     self.set_flag(ZERO_FLAG, val == 0); // zero iff zero before
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, false);
     self.set_flag(CARRY_FLAG, (val & 0x01) != 0);
+    
     8 + 2 * dst.cycles()
   }
 
@@ -1012,10 +1061,12 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
     let val = dst.load(self);
     let result = (val >> 1) | ((self.regs.f & CARRY_FLAG) << (7 - CARRY_OFFSET));
     dst.store(self, result);
+    
     self.set_flag(ZERO_FLAG, result == 0);
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, false);
     self.set_flag(CARRY_FLAG, (val & 0x01) != 0);
+    
     8 + 2 * dst.cycles()
   }
 
@@ -1023,10 +1074,12 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
     let val = dst.load(self);
     let result = val << 1;
     dst.store(self, result);
+    
     self.set_flag(ZERO_FLAG, result == 0);
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, false);
     self.set_flag(CARRY_FLAG, (val & 0x80) != 0);
+    
     8 + 2 * dst.cycles()
   }
 
@@ -1034,10 +1087,12 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
     let val = dst.load(self);
     let result = (val & 0x80) | (val >> 1);
     dst.store(self, result);
+    
     self.set_flag(ZERO_FLAG, result == 0);
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, false);
     self.set_flag(CARRY_FLAG, (val & 0x01) != 0);
+    
     8 + 2 * dst.cycles()
   }
 
@@ -1045,40 +1100,50 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
     let val = dst.load(self);
     let result = val >> 1;
     dst.store(self, result);
+    
     self.set_flag(ZERO_FLAG, result == 0);
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, false);
     self.set_flag(CARRY_FLAG, (val & 0x01) != 0);
+    
     8 + 2 * dst.cycles()
   }
 
   fn bit(&mut self, bit: u8, src: Addr8) -> u8 {
     let val = src.load(self);
-    self.set_flag(ZERO_FLAG, (val & (1 << bit)) == 0);
+    
+    self.set_flag(ZERO_FLAG, (val & (1 << bit as uint)) == 0);
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, true);
+    
     8 + src.cycles() // TODO: BIT b, (HL) takes 16 cycles
   }
 
   fn res(&mut self, bit: u8, dst: Addr8) -> u8 {
     let val = dst.load(self);
-    dst.store(self, val & !(1 << bit));
+    
+    dst.store(self, val & !(1 << bit as uint));
+    
     8 + 2 * dst.cycles()
   }
 
   fn set(&mut self, bit: u8, dst: Addr8) -> u8 {
     let val = dst.load(self);
-    dst.store(self, val | (1 << bit));
+    
+    dst.store(self, val | (1 << bit as uint));
+    
     8 + 2 * dst.cycles()
   }
 
   fn swap(&mut self, dst: Addr8) -> u8 {
     let val = dst.load(self);
     dst.store(self, (val >> 4) | (val << 4));
+    
     self.set_flag(ZERO_FLAG, val == 0); // zero iff zero before
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, false);
     self.set_flag(CARRY_FLAG, false);
+    
     8 + 2 * dst.cycles()
   }
 

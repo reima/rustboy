@@ -44,7 +44,7 @@ impl Cartridge {
     let rom_size = header[0x48];
     let rom_bank_count =
       match rom_size {
-        0..7 => 2 << rom_size,
+        0..7 => 2 << (rom_size as uint),
         0x52 => 72,
         0x53 => 80,
         0x54 => 96,

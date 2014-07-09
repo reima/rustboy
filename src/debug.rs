@@ -19,7 +19,7 @@ fn disasm<M: Mem>(mem: &mut M, addr: &mut u16) -> String {
 fn disassemble<M: Mem>(mem: &mut M, addr: u16) {
   let mut pc = addr;
 
-  for _ in range(0, 5) {
+  for _ in range(0u, 5u) {
     let start_addr = pc;
     let instr = disasm(mem, &mut pc);
     let end_addr = pc;
@@ -37,7 +37,7 @@ fn print_mem<M: Mem>(mem: &mut M, addr: u16) {
   let mut base = addr & 0xfff0;
   let mut start_offset = addr & 0xf;
 
-  for _ in range(0, 4) {
+  for _ in range(0u, 4u) {
     print!("${:04X}\t", base);
     for offset in range(0u16, 16u16) {
       if offset == 8 {
@@ -75,7 +75,7 @@ fn expand_tile_row(tile: &[u8], palette: u8, row: uint, pixels: &mut [u8]) {
     let low_bit  = (tile[2*row]   >> (7 - col)) & 1;
     let high_bit = (tile[2*row+1] >> (7 - col)) & 1;
     let value = (high_bit << 1) | low_bit;
-    let color = 3 - ((palette >> (2 * value)) & 0b11);
+    let color = 3 - ((palette >> (2 * value as uint)) & 0b11);
     pixels[col] = color;
   }
 }
