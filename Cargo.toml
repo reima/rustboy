@@ -1,0 +1,9 @@
+[package]
+
+name = "rustboy"
+version = "0.0.1"
+authors = ["Matthias Reitinger <reima@edenprime.de>"]
+
+[dependencies.sdl2]
+
+git = "https://github.com/AngryLawyer/rust-sdl2.git"

@@ -7,19 +7,19 @@ use std::io::Writer;
 
 static SERIAL_TRANSFER_FLAG: u8 = 0x80;
 
-pub struct SerialIO {
+pub struct SerialIO<'a> {
   data: u8, // SB register
   control: u8, // SC register
-  writer: Option<Box<Writer>>,
+  writer: Option<Box<Writer + 'a>>,
 }
 
-impl SerialIO {
-  pub fn new(writer: Option<Box<Writer>>) -> SerialIO {
+impl<'a> SerialIO<'a> {
+  pub fn new(writer: Option<Box<Writer + 'a>>) -> SerialIO<'a> {
     SerialIO { data: 0, control: 0, writer: writer }
   }
 }
 
-impl mem::Mem for SerialIO {
+impl<'a> mem::Mem for SerialIO<'a> {
   fn loadb(&mut self, addr: u16) -> u8 {
     match addr {
       0xff01 => self.data,

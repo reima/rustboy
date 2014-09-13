@@ -218,7 +218,7 @@ impl Debugger {
       return None;
     }
 
-    let command = *words.get(0);
+    let command = words[0];
     match command {
       "q" => Some(Quit), // quit
       "s" => Some(Step), // step
@@ -226,9 +226,9 @@ impl Debugger {
       "regs" => { print_regs(cpu); None }, // print registers
       "m" => { // print memory
         if words.len() >= 2 {
-          match parse_addr(*words.get(1)) {
+          match parse_addr(words[1]) {
             Some(addr) => print_mem(&mut cpu.mem, addr),
-            None       => error!("Invalid address: {:s}", *words.get(1)),
+            None       => error!("Invalid address: {:s}", words[1]),
           }
         }
         None
@@ -236,9 +236,9 @@ impl Debugger {
       "d" => { // disasm
         let mut addr = cpu.regs.pc;
         if words.len() >= 2 {
-          match parse_addr(*words.get(1)) {
+          match parse_addr(words[1]) {
             Some(a) => addr = a,
-            None    => error!("Invalid address: {:s}", *words.get(1)),
+            None    => error!("Invalid address: {:s}", words[1]),
           }
         }
         disassemble(&mut cpu.mem, addr);
@@ -250,7 +250,7 @@ impl Debugger {
         } else if words.len() >= 2 {
           // add/remove breakpoint
           let mut add = true;
-          let mut arg = *words.get(1);
+          let mut arg = words[1];
           if arg.starts_with("-") {
             arg = arg.slice_from(1);
             add = false;
@@ -263,21 +263,21 @@ impl Debugger {
                 self.remove_breakpoint(addr);
               }
             },
-            None => error!("Invalid address: {:s}", *words.get(1)),
+            None => error!("Invalid address: {:s}", words[1]),
           }
         }
         None
       },
       "tiles" => { // dump video tiles
         match dump_tiles(&mut cpu.mem) {
-          Err(e) => error!("I/O error: {:s}", e.to_str()),
+          Err(e) => error!("I/O error: {}", e),
           _ => (),
         }
         None
       },
       "bg" => { // dump video bg
         match dump_bg(&mut cpu.mem) {
-          Err(e) => error!("I/O error: {:s}", e.to_str()),
+          Err(e) => error!("I/O error: {}", e),
           _ => (),
         }
         None

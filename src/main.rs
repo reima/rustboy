@@ -37,20 +37,20 @@ impl Mem for Dummy {
   }
 }
 
-struct MemMap {
+struct MemMap<'a> {
   cart: Box<cartridge::Cartridge>,
   wram: ram::WorkRam,
   timer: timer::Timer,
   intr: interrupt::InterruptCtrl,
   sound: sound::Sound,
   video: video::Video,
-  serial: serial::SerialIO,
+  serial: serial::SerialIO<'a>,
   joypad: joypad::Joypad,
   dummy: Dummy,
 }
 
-impl MemMap {
-  fn mem_from_addr<'a>(&'a mut self, addr: u16) -> &'a mut Mem {
+impl<'a> MemMap<'a> {
+  fn mem_from_addr(&mut self, addr: u16) -> &mut Mem {
     match addr {
       0x0000..0x7fff | // ROM banks
       0xa000..0xbfff   // External RAM
@@ -72,7 +72,7 @@ impl MemMap {
   }
 }
 
-impl Mem for MemMap {
+impl<'a> Mem for MemMap<'a> {
   fn loadb(&mut self, addr: u16) -> u8 {
     self.mem_from_addr(addr).loadb(addr)
   }
@@ -121,7 +121,7 @@ impl VideoOut {
 
   fn blit_and_present(&self, pixels: &[u8]) {
     self.texture.update(None, pixels, (video::SCREEN_WIDTH * 4) as int);
-    self.renderer.copy(self.texture, None, None);
+    self.renderer.copy(&*self.texture, None, None);
     self.renderer.present();
   }
 
@@ -156,23 +156,23 @@ enum State {
 
 fn main() {
   let args = std::os::args();
-  if args.len() != 2 && !(args.len() == 3 && *args.get(1) == "-d".to_string()) {
-    println!("Usage: {:s} [-d] rom.gb", *args.get(0));
+  if args.len() != 2 && !(args.len() == 3 && args[1] == "-d".to_string()) {
+    println!("Usage: {:s} [-d] rom.gb", args[0]);
     return;
   }
 
   let mut disassemble = false;
   let path =
     if args.len() == 2 {
-      args.get(1)
+      &args[1]
     } else {
       disassemble = true;
-      args.get(2)
+      &args[2]
     };
 
   let mut cart = match cartridge::Cartridge::from_path(&Path::new(path.as_slice())) {
     Ok(cart) => box cart,
-    Err(e)   => fail!("I/O error: {:s}", e.to_str()),
+    Err(e)   => fail!("I/O error: {}", e),
   };
 
   if disassemble {

@@ -2,7 +2,7 @@ use cpu::{Addr8, Addr16, Cond, Decoder};
 use cpu;
 use mem;
 
-pub struct Disasm<'a, M> {
+pub struct Disasm<'a, M:'a> {
   pub mem: &'a mut M,
   pub pc: u16,
 }
@@ -11,7 +11,7 @@ fn addr16_to_str(addr: Addr16) -> String {
   match addr {
     cpu::Imm16(val)    => format!("${:04X}", val),
     cpu::Ind16(addr)   => format!("(${:04X})", addr),
-    cpu::Reg16(r)      => r.to_str(),
+    cpu::Reg16(r)      => format!("{}", r),
   }
 }
 
@@ -20,11 +20,11 @@ fn addr8_to_str(addr: Addr8) -> String {
     cpu::Imm8(val)       => format!("${:02X}", val),
     cpu::Ind8(offset)    => format!("($FF00+${:02X})", offset),
     cpu::Imm16Ind8(addr) => format!("(${:04X})", addr),
-    cpu::Reg8(r)         => r.to_str(),
-    cpu::Reg8Ind8(r)     => format!("($FF00+{:s})", r.to_str()),
-    cpu::Reg16Ind8(r)    => format!("({:s})", r.to_str()),
-    cpu::Reg16Ind8Inc(r) => format!("({:s}+)", r.to_str()),
-    cpu::Reg16Ind8Dec(r) => format!("({:s}-)", r.to_str()),
+    cpu::Reg8(r)         => format!("{}", r),
+    cpu::Reg8Ind8(r)     => format!("($FF00+{})", r),
+    cpu::Reg16Ind8(r)    => format!("({})", r),
+    cpu::Reg16Ind8Inc(r) => format!("({}+)", r),
+    cpu::Reg16Ind8Dec(r) => format!("({}-)", r),
   }
 }
 
