@@ -109,7 +109,7 @@ pub enum Addr8 {
   Imm8(u8),
   Ind8(u8),
   Imm16Ind8(u16),
-  Reg8(Reg8),
+  Reg8Dir(Reg8),
   Reg8Ind8(Reg8),
   Reg16Ind8(Reg16),
   Reg16Ind8Inc(Reg16),
@@ -120,7 +120,7 @@ impl Addr8 {
   fn cycles(&self) -> u8 {
     // Every (byte) memory access costs 4 cycles
     match *self {
-      Reg8(_)           => 0, // register access is "free"
+      Reg8Dir(_)        => 0, // register access is "free"
       Imm8(_) |
       Ind8(_) |
       Reg8Ind8(_)       => 4,  // one memory access
@@ -136,7 +136,7 @@ impl Addr8 {
       Imm8(val)       => val,
       Ind8(offset)    => cpu.mem.loadb(0xff00 + offset as u16),
       Imm16Ind8(addr) => cpu.mem.loadb(addr),
-      Reg8(r)         => r.load(cpu),
+      Reg8Dir(r)      => r.load(cpu),
       Reg8Ind8(r)     => {
         let offset = r.load(cpu);
         cpu.mem.loadb(0xff00 + offset as u16)
@@ -160,7 +160,7 @@ impl Addr8 {
     match *self {
       Ind8(offset)    => cpu.mem.storeb(0xff00 + offset as u16, val),
       Imm16Ind8(addr) => cpu.mem.storeb(addr, val),
-      Reg8(r)         => r.store(cpu, val),
+      Reg8Dir(r)      => r.store(cpu, val),
       Reg8Ind8(r)     => {
         let offset = r.load(cpu);
         cpu.mem.storeb(0xff00 + offset as u16, val)
@@ -184,14 +184,14 @@ impl Addr8 {
 pub enum Addr16 {
   Imm16(u16),
   Ind16(u16),
-  Reg16(Reg16),
+  Reg16Dir(Reg16),
 }
 
 impl Addr16 {
   fn cycles(&self) -> u8 {
     // Every (byte) memory access costs 4 cycles
     match *self {
-      Reg16(_)      => 0,  // register access is "free"
+      Reg16Dir(_)   => 0,  // register access is "free"
       Imm16(_)      => 8,  // two memory accesses
       Ind16(_)      => 16, // four memory accesses
     }
@@ -201,14 +201,14 @@ impl Addr16 {
     match *self {
       Imm16(val)    => val,
       Ind16(addr)   => cpu.mem.loadw(addr),
-      Reg16(r)      => r.load(cpu),
+      Reg16Dir(r)   => r.load(cpu),
     }
   }
 
   fn store<M: mem::Mem>(&self, cpu: &mut Cpu<M>, val: u16) {
     match *self {
       Ind16(addr)   => cpu.mem.storew(addr, val),
-      Reg16(r)      => r.store(cpu, val),
+      Reg16Dir(r)   => r.store(cpu, val),
       _ => fail!("invalid addressing mode for 16-bit store")
     }
   }
@@ -321,14 +321,14 @@ pub trait Decoder<R> {
 // operands, this method decodes the operand from the lower 3 bits
 fn decode_addr(code: u8) -> Addr8 {
   match code & 0x07 {
-    0x00 => Reg8(B),
-    0x01 => Reg8(C),
-    0x02 => Reg8(D),
-    0x03 => Reg8(E),
-    0x04 => Reg8(H),
-    0x05 => Reg8(L),
+    0x00 => Reg8Dir(B),
+    0x01 => Reg8Dir(C),
+    0x02 => Reg8Dir(D),
+    0x03 => Reg8Dir(E),
+    0x04 => Reg8Dir(H),
+    0x05 => Reg8Dir(L),
     0x06 => Reg16Ind8(HL),
-    0x07 => Reg8(A),
+    0x07 => Reg8Dir(A),
     _    => fail!("logic error"),
   }
 }
@@ -345,78 +345,78 @@ pub fn decode<R, D: Decoder<R>>(d: &mut D) -> R {
   match opcode {
     // 0x00
     0x00 => d.nop(),
-    0x01 => { let imm = fetchw(d); d.ld16(Reg16(BC), Imm16(imm)) }
-    0x02 => d.ld8(Reg16Ind8(BC), Reg8(A)),
-    0x03 => d.inc16(Reg16(BC)),
-    0x04 => d.inc8(Reg8(B)),
-    0x05 => d.dec8(Reg8(B)),
-    0x06 => { let imm = d.fetch(); d.ld8(Reg8(B), Imm8(imm)) }
+    0x01 => { let imm = fetchw(d); d.ld16(Reg16Dir(BC), Imm16(imm)) }
+    0x02 => d.ld8(Reg16Ind8(BC), Reg8Dir(A)),
+    0x03 => d.inc16(Reg16Dir(BC)),
+    0x04 => d.inc8(Reg8Dir(B)),
+    0x05 => d.dec8(Reg8Dir(B)),
+    0x06 => { let imm = d.fetch(); d.ld8(Reg8Dir(B), Imm8(imm)) }
     0x07 => d.rlca(),
 
-    0x08 => { let ind = fetchw(d); d.ld16(Ind16(ind), Reg16(SP)) }
-    0x09 => d.add16(Reg16(HL), Reg16(BC)),
-    0x0a => d.ld8(Reg8(A), Reg16Ind8(BC)),
-    0x0b => d.dec16(Reg16(BC)),
-    0x0c => d.inc8(Reg8(C)),
-    0x0d => d.dec8(Reg8(C)),
-    0x0e => { let imm = d.fetch(); d.ld8(Reg8(C), Imm8(imm)) }
+    0x08 => { let ind = fetchw(d); d.ld16(Ind16(ind), Reg16Dir(SP)) }
+    0x09 => d.add16(Reg16Dir(HL), Reg16Dir(BC)),
+    0x0a => d.ld8(Reg8Dir(A), Reg16Ind8(BC)),
+    0x0b => d.dec16(Reg16Dir(BC)),
+    0x0c => d.inc8(Reg8Dir(C)),
+    0x0d => d.dec8(Reg8Dir(C)),
+    0x0e => { let imm = d.fetch(); d.ld8(Reg8Dir(C), Imm8(imm)) }
     0x0f => d.rrca(),
 
     // 0x10
     0x10 => { let val = d.fetch(); d.stop(val) }
-    0x11 => { let imm = fetchw(d); d.ld16(Reg16(DE), Imm16(imm)) }
-    0x12 => d.ld8(Reg16Ind8(DE), Reg8(A)),
-    0x13 => d.inc16(Reg16(DE)),
-    0x14 => d.inc8(Reg8(D)),
-    0x15 => d.dec8(Reg8(D)),
-    0x16 => { let imm = d.fetch(); d.ld8(Reg8(D), Imm8(imm)) }
+    0x11 => { let imm = fetchw(d); d.ld16(Reg16Dir(DE), Imm16(imm)) }
+    0x12 => d.ld8(Reg16Ind8(DE), Reg8Dir(A)),
+    0x13 => d.inc16(Reg16Dir(DE)),
+    0x14 => d.inc8(Reg8Dir(D)),
+    0x15 => d.dec8(Reg8Dir(D)),
+    0x16 => { let imm = d.fetch(); d.ld8(Reg8Dir(D), Imm8(imm)) }
     0x17 => d.rla(),
 
     0x18 => { let imm = d.fetch(); d.jr(CondNone, imm as i8) }
-    0x19 => d.add16(Reg16(HL), Reg16(DE)),
-    0x1a => d.ld8(Reg8(A), Reg16Ind8(DE)),
-    0x1b => d.dec16(Reg16(DE)),
-    0x1c => d.inc8(Reg8(E)),
-    0x1d => d.dec8(Reg8(E)),
-    0x1e => { let imm = d.fetch(); d.ld8(Reg8(E), Imm8(imm)) }
+    0x19 => d.add16(Reg16Dir(HL), Reg16Dir(DE)),
+    0x1a => d.ld8(Reg8Dir(A), Reg16Ind8(DE)),
+    0x1b => d.dec16(Reg16Dir(DE)),
+    0x1c => d.inc8(Reg8Dir(E)),
+    0x1d => d.dec8(Reg8Dir(E)),
+    0x1e => { let imm = d.fetch(); d.ld8(Reg8Dir(E), Imm8(imm)) }
     0x1f => d.rra(),
 
     // 0x20
     0x20 => { let imm = d.fetch(); d.jr(CondNZ, imm as i8) }
-    0x21 => { let imm = fetchw(d); d.ld16(Reg16(HL), Imm16(imm)) }
-    0x22 => d.ld8(Reg16Ind8Inc(HL), Reg8(A)),
-    0x23 => d.inc16(Reg16(HL)),
-    0x24 => d.inc8(Reg8(H)),
-    0x25 => d.dec8(Reg8(H)),
-    0x26 => { let imm = d.fetch(); d.ld8(Reg8(H), Imm8(imm)) }
+    0x21 => { let imm = fetchw(d); d.ld16(Reg16Dir(HL), Imm16(imm)) }
+    0x22 => d.ld8(Reg16Ind8Inc(HL), Reg8Dir(A)),
+    0x23 => d.inc16(Reg16Dir(HL)),
+    0x24 => d.inc8(Reg8Dir(H)),
+    0x25 => d.dec8(Reg8Dir(H)),
+    0x26 => { let imm = d.fetch(); d.ld8(Reg8Dir(H), Imm8(imm)) }
     0x27 => d.daa(),
 
     0x28 => { let imm = d.fetch(); d.jr(CondZ, imm as i8) }
-    0x29 => d.add16(Reg16(HL), Reg16(HL)),
-    0x2a => d.ld8(Reg8(A), Reg16Ind8Inc(HL)),
-    0x2b => d.dec16(Reg16(HL)),
-    0x2c => d.inc8(Reg8(L)),
-    0x2d => d.dec8(Reg8(L)),
-    0x2e => { let imm = d.fetch(); d.ld8(Reg8(L), Imm8(imm)) }
+    0x29 => d.add16(Reg16Dir(HL), Reg16Dir(HL)),
+    0x2a => d.ld8(Reg8Dir(A), Reg16Ind8Inc(HL)),
+    0x2b => d.dec16(Reg16Dir(HL)),
+    0x2c => d.inc8(Reg8Dir(L)),
+    0x2d => d.dec8(Reg8Dir(L)),
+    0x2e => { let imm = d.fetch(); d.ld8(Reg8Dir(L), Imm8(imm)) }
     0x2f => d.cpl(),
 
     // 0x30
     0x30 => { let imm = d.fetch(); d.jr(CondNC, imm as i8) }
-    0x31 => { let imm = fetchw(d); d.ld16(Reg16(SP), Imm16(imm)) }
-    0x32 => d.ld8(Reg16Ind8Dec(HL), Reg8(A)),
-    0x33 => d.inc16(Reg16(SP)),
+    0x31 => { let imm = fetchw(d); d.ld16(Reg16Dir(SP), Imm16(imm)) }
+    0x32 => d.ld8(Reg16Ind8Dec(HL), Reg8Dir(A)),
+    0x33 => d.inc16(Reg16Dir(SP)),
     0x34 => d.inc8(Reg16Ind8(HL)),
     0x35 => d.dec8(Reg16Ind8(HL)),
     0x36 => { let imm = d.fetch(); d.ld8(Reg16Ind8(HL), Imm8(imm)) }
     0x37 => d.scf(),
 
     0x38 => { let imm = d.fetch(); d.jr(CondC, imm as i8) }
-    0x39 => d.add16(Reg16(HL), Reg16(SP)),
-    0x3a => d.ld8(Reg8(A), Reg16Ind8Dec(HL)),
-    0x3b => d.dec16(Reg16(SP)),
-    0x3c => d.inc8(Reg8(A)),
-    0x3d => d.dec8(Reg8(A)),
-    0x3e => { let imm = d.fetch(); d.ld8(Reg8(A), Imm8(imm)) }
+    0x39 => d.add16(Reg16Dir(HL), Reg16Dir(SP)),
+    0x3a => d.ld8(Reg8Dir(A), Reg16Ind8Dec(HL)),
+    0x3b => d.dec16(Reg16Dir(SP)),
+    0x3c => d.inc8(Reg8Dir(A)),
+    0x3d => d.dec8(Reg8Dir(A)),
+    0x3e => { let imm = d.fetch(); d.ld8(Reg8Dir(A), Imm8(imm)) }
     0x3f => d.ccf(),
 
     // 0x40-0x70
@@ -442,11 +442,11 @@ pub fn decode<R, D: Decoder<R>>(d: &mut D) -> R {
 
     // 0xc0
     0xc0 => d.ret(CondNZ),
-    0xc1 => d.pop(Reg16(BC)),
+    0xc1 => d.pop(Reg16Dir(BC)),
     0xc2 => { let imm = fetchw(d); d.jp(CondNZ, Imm16(imm)) }
     0xc3 => { let imm = fetchw(d); d.jp(CondNone, Imm16(imm)) }
     0xc4 => { let imm = fetchw(d); d.call(CondNZ, Imm16(imm)) }
-    0xc5 => d.push(Reg16(BC)),
+    0xc5 => d.push(Reg16Dir(BC)),
     0xc6 => { let imm = d.fetch(); d.add8(Imm8(imm)) }
     0xc7 => d.rst(0x00),
 
@@ -482,11 +482,11 @@ pub fn decode<R, D: Decoder<R>>(d: &mut D) -> R {
 
     // 0xd0
     0xd0 => d.ret(CondNC),
-    0xd1 => d.pop(Reg16(DE)),
+    0xd1 => d.pop(Reg16Dir(DE)),
     0xd2 => { let imm = fetchw(d); d.jp(CondNC, Imm16(imm)) }
     /*0xd3 => d.nop(),*/
     0xd4 => { let imm = fetchw(d); d.call(CondNC, Imm16(imm)) }
-    0xd5 => d.push(Reg16(DE)),
+    0xd5 => d.push(Reg16Dir(DE)),
     0xd6 => { let imm = d.fetch(); d.sub(Imm8(imm)) }
     0xd7 => d.rst(0x10),
 
@@ -500,18 +500,18 @@ pub fn decode<R, D: Decoder<R>>(d: &mut D) -> R {
     0xdf => d.rst(0x18),
 
     // 0xe0
-    0xe0 => { let ind = d.fetch(); d.ldh(Ind8(ind), Reg8(A)) }
-    0xe1 => d.pop(Reg16(HL)),
-    0xe2 => d.ld8(Reg8Ind8(C), Reg8(A)),
+    0xe0 => { let ind = d.fetch(); d.ldh(Ind8(ind), Reg8Dir(A)) }
+    0xe1 => d.pop(Reg16Dir(HL)),
+    0xe2 => d.ld8(Reg8Ind8(C), Reg8Dir(A)),
     /*0xe3 => d.nop(),*/
     /*0xe4 => d.nop(),*/
-    0xe5 => d.push(Reg16(HL)),
+    0xe5 => d.push(Reg16Dir(HL)),
     0xe6 => { let imm = d.fetch(); d.and(Imm8(imm)) }
     0xe7 => d.rst(0x20),
 
     0xe8 => { let imm = d.fetch(); d.addsp(imm as i8) }
-    0xe9 => d.jp(CondNone, Reg16(HL)),
-    0xea => { let ind = fetchw(d); d.ld8(Imm16Ind8(ind), Reg8(A)) }
+    0xe9 => d.jp(CondNone, Reg16Dir(HL)),
+    0xea => { let ind = fetchw(d); d.ld8(Imm16Ind8(ind), Reg8Dir(A)) }
     /*0xeb => d.nop(),*/
     /*0xec => d.nop(),*/
     /*0xed => d.nop(),*/
@@ -519,18 +519,18 @@ pub fn decode<R, D: Decoder<R>>(d: &mut D) -> R {
     0xef => d.rst(0x28),
 
     // 0xf0
-    0xf0 => { let ind = d.fetch(); d.ldh(Reg8(A), Ind8(ind)) }
-    0xf1 => d.pop(Reg16(AF)),
-    0xf2 => d.ld8(Reg8(A), Reg8Ind8(C)),
+    0xf0 => { let ind = d.fetch(); d.ldh(Reg8Dir(A), Ind8(ind)) }
+    0xf1 => d.pop(Reg16Dir(AF)),
+    0xf2 => d.ld8(Reg8Dir(A), Reg8Ind8(C)),
     0xf3 => d.di(),
     /*0xf4 => d.nop(),*/
-    0xf5 => d.push(Reg16(AF)),
+    0xf5 => d.push(Reg16Dir(AF)),
     0xf6 => { let imm = d.fetch(); d.or(Imm8(imm)) }
     0xf7 => d.rst(0x30),
 
     0xf8 => { let imm = d.fetch(); d.ldhl(imm as i8) }
-    0xf9 => d.ld16(Reg16(SP), Reg16(HL)),
-    0xfa => { let ind = fetchw(d); d.ld8(Reg8(A), Imm16Ind8(ind)) }
+    0xf9 => d.ld16(Reg16Dir(SP), Reg16Dir(HL)),
+    0xfa => { let ind = fetchw(d); d.ld8(Reg8Dir(A), Imm16Ind8(ind)) }
     0xfb => d.ei(),
     /*0xfc => d.nop(),*/
     /*0xfd => d.nop(),*/
@@ -585,7 +585,7 @@ impl<M: mem::Mem> Cpu<M> {
       let irq = effective.trailing_zeros();
       if irq < 5 {
         // Valid IRQ (0-4)
-        self.push(Reg16(PC));                    // Push PC
+        self.push(Reg16Dir(PC));                    // Push PC
         self.regs.pc = 0x40 + irq as u16 * 0x08; // Jump to ISR
         self.ime = false;                        // Disable interrupts
         self.mem.storeb(0xff0f, request_mask & !(1 << irq as uint)); // Clear IRQ flag
@@ -697,7 +697,7 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
 
   fn jp(&mut self, cond: Cond, addr: Addr16) -> u8 {
     if cond.eval(self) {
-      self.ld16(Reg16(PC), addr);
+      self.ld16(Reg16Dir(PC), addr);
     }
     4 + addr.cycles()
   }
@@ -705,15 +705,15 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
   fn jr(&mut self, cond: Cond, rel: i8) -> u8 {
     if cond.eval(self) {
       let addr = self.regs.pc as i16 + rel as i16;
-      self.ld16(Reg16(PC), Imm16(addr as u16));
+      self.ld16(Reg16Dir(PC), Imm16(addr as u16));
     }
     8
   }
 
   fn call(&mut self, cond: Cond, addr: Addr16) -> u8 {
     if cond.eval(self) {
-      self.push(Reg16(PC));
-      self.ld16(Reg16(PC), addr);
+      self.push(Reg16Dir(PC));
+      self.ld16(Reg16Dir(PC), addr);
     }
     12
   }
@@ -725,13 +725,13 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
 
   fn ret(&mut self, cond: Cond) -> u8 {
     if cond.eval(self) {
-      self.pop(Reg16(PC));
+      self.pop(Reg16Dir(PC));
     }
     8
   }
 
   fn reti(&mut self) -> u8 {
-    self.pop(Reg16(PC));
+    self.pop(Reg16Dir(PC));
     self.ei();
     8
   }
@@ -989,7 +989,7 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
   //
 
   fn rlca(&mut self) -> u8 {
-    self.rlc(Reg8(A));
+    self.rlc(Reg8Dir(A));
 
     self.set_flag(ZERO_FLAG, false);
 
@@ -997,7 +997,7 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
   }
 
   fn rla(&mut self) -> u8 {
-    self.rl(Reg8(A));
+    self.rl(Reg8Dir(A));
 
     self.set_flag(ZERO_FLAG, false);
 
@@ -1005,7 +1005,7 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
   }
 
   fn rrca(&mut self) -> u8 {
-    self.rrc(Reg8(A));
+    self.rrc(Reg8Dir(A));
 
     self.set_flag(ZERO_FLAG, false);
 
@@ -1013,7 +1013,7 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
   }
 
   fn rra(&mut self) -> u8 {
-    self.rr(Reg8(A));
+    self.rr(Reg8Dir(A));
 
     self.set_flag(ZERO_FLAG, false);
 
