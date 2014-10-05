@@ -133,9 +133,9 @@ impl Video {
     self.mode =
       if self.ly < SCREEN_HEIGHT as u8 {
         match self.cycles % ROW_CYCLES {
-          MODE2_START .. (MODE3_START - 1) => 2,
-          MODE3_START .. (MODE0_START - 1) => 3,
-          _                                => 0,
+          MODE2_START ... (MODE3_START - 1) => 2,
+          MODE3_START ... (MODE0_START - 1) => 3,
+          _                                 => 0,
         }
       } else {
         1 // V-Blank
@@ -346,8 +346,8 @@ impl Video {
 impl mem::Mem for Video {
   fn loadb(&mut self, addr: u16) -> u8 {
     match addr {
-      0x8000..0x9fff => self.vram[(addr - 0x8000) as uint],
-      0xfe00..0xfe9f => self.oam[(addr - 0xfe00) as uint], // OAM
+      0x8000...0x9fff => self.vram[(addr - 0x8000) as uint],
+      0xfe00...0xfe9f => self.oam[(addr - 0xfe00) as uint], // OAM
 
       // I/O registers
       0xff40 => self.flags,
@@ -368,8 +368,8 @@ impl mem::Mem for Video {
 
   fn storeb(&mut self, addr: u16, val: u8) {
     match addr {
-      0x8000..0x9fff => self.vram[(addr - 0x8000) as uint] = val,
-      0xfe00..0xfe9f => self.oam[(addr - 0xfe00) as uint] = val,
+      0x8000...0x9fff => self.vram[(addr - 0x8000) as uint] = val,
+      0xfe00...0xfe9f => self.oam[(addr - 0xfe00) as uint] = val,
 
       // I/O registers
       0xff40 => self.flags = val,

@@ -52,21 +52,21 @@ struct MemMap<'a> {
 impl<'a> MemMap<'a> {
   fn mem_from_addr(&mut self, addr: u16) -> &mut Mem {
     match addr {
-      0x0000..0x7fff | // ROM banks
-      0xa000..0xbfff   // External RAM
-                      => &mut *self.cart as &mut Mem,
-      0x8000..0x9fff | // VRAM
-      0xfe00..0xfe9f | // OAM
-      0xff40..0xff4b   // Video I/O
-                      => &mut self.video as &mut Mem,
-      0xc000..0xfdff | // WRAM (including echo area 0xe000-0xfdff)
-      0xff80..0xfffe   // HRAM
-                      => &mut self.wram as &mut Mem,
-      0xff00          => &mut self.joypad as &mut Mem,
-      0xff01..0xff02  => &mut self.serial as &mut Mem,
-      0xff04..0xff07  => &mut self.timer as &mut Mem,
-      0xff0f | 0xffff => &mut self.intr as &mut Mem,
-      0xff10..0xff3f  => &mut self.sound as &mut Mem,
+      0x0000...0x7fff | // ROM banks
+      0xa000...0xbfff   // External RAM
+                       => &mut *self.cart as &mut Mem,
+      0x8000...0x9fff | // VRAM
+      0xfe00...0xfe9f | // OAM
+      0xff40...0xff4b   // Video I/O
+                       => &mut self.video as &mut Mem,
+      0xc000...0xfdff | // WRAM (including echo area 0xe000-0xfdff)
+      0xff80...0xfffe   // HRAM
+                       => &mut self.wram as &mut Mem,
+      0xff00           => &mut self.joypad as &mut Mem,
+      0xff01...0xff02  => &mut self.serial as &mut Mem,
+      0xff04...0xff07  => &mut self.timer as &mut Mem,
+      0xff0f | 0xffff  => &mut self.intr as &mut Mem,
+      0xff10...0xff3f  => &mut self.sound as &mut Mem,
       _ => &mut self.dummy as &mut Mem,
     }
   }

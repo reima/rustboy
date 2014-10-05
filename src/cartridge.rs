@@ -44,10 +44,10 @@ impl Cartridge {
     let rom_size = header[0x48];
     let rom_bank_count =
       match rom_size {
-        0..7 => 2 << (rom_size as uint),
-        0x52 => 72,
-        0x53 => 80,
-        0x54 => 96,
+        0...7 => 2 << (rom_size as uint),
+        0x52  => 72,
+        0x53  => 80,
+        0x54  => 96,
         _ => fail!("unsupported ROM size: 0x{:02X}", rom_size),
       };
     let mut rom_banks = Vec::with_capacity(rom_bank_count);
@@ -82,9 +82,9 @@ impl Cartridge {
 impl Mem for Cartridge {
   fn loadb(&mut self, addr: u16) -> u8 {
     match addr {
-      0x0000..0x3fff => self.rom_banks.get_mut(0).loadb(addr),
-      0x4000..0x7fff => self.rom_banks.get_mut(self.rom_bank as uint).loadb(addr - 0x4000),
-      0xa000..0xbfff => { debug!("RAM load at ${:04X}", addr); 0xff },
+      0x0000...0x3fff => self.rom_banks.get_mut(0).loadb(addr),
+      0x4000...0x7fff => self.rom_banks.get_mut(self.rom_bank as uint).loadb(addr - 0x4000),
+      0xa000...0xbfff => { debug!("RAM load at ${:04X}", addr); 0xff },
       _ => { debug!("unsupported cartridge address ${:04X}", addr); 0xff },
     }
   }
@@ -94,17 +94,17 @@ impl Mem for Cartridge {
       None => info!("store 0x{:02X} in cartridge ROM at ${:04X}", val, addr),
       Some(MBC1) => {
         match addr {
-          0x0000..0x1fff => debug!("RAM enable"),
-          0x2000..0x3fff => { // set lower 5 bits of ROM bank
+          0x0000...0x1fff => debug!("RAM enable"),
+          0x2000...0x3fff => { // set lower 5 bits of ROM bank
             let bank_bits_0_4 = cmp::max(val & 0b11111, 1u8); // treat 0 as 1
             self.rom_bank = (self.rom_bank & (0b11100000)) | bank_bits_0_4;
           },
-          0x4000..0x5fff => { // set higher 2 bits of ROM bank
+          0x4000...0x5fff => { // set higher 2 bits of ROM bank
             let bank_bits_5_6 = (val & 0b11) << 5;
             self.rom_bank = (self.rom_bank & (0b10011111)) | bank_bits_5_6;
           },
-          0x6000..0x7fff => debug!("ROM/RAM mode select at ${:04X}", addr),
-          0xa000..0xbfff => debug!("RAM store at ${:04X}", addr),
+          0x6000...0x7fff => debug!("ROM/RAM mode select at ${:04X}", addr),
+          0xa000...0xbfff => debug!("RAM store at ${:04X}", addr),
           _ => debug!("unsupported cartridge address ${:04X}", addr),
         }
       },
