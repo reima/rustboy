@@ -2,11 +2,11 @@
 name = "rustboy"
 version = "0.0.1"
 dependencies = [
- "sdl2 0.0.1 (git+https://github.com/AngryLawyer/rust-sdl2.git#cd71b90494f3a7fd384ee4b5422737bde63f1307)",
+ "sdl2 0.0.1 (git+https://github.com/AngryLawyer/rust-sdl2.git#c2ee9627b4c7a4991557702d1fcabb177ce2e9dc)",
 ]
 
 [[package]]
 name = "sdl2"
 version = "0.0.1"
-source = "git+https://github.com/AngryLawyer/rust-sdl2.git#cd71b90494f3a7fd384ee4b5422737bde63f1307"
+source = "git+https://github.com/AngryLawyer/rust-sdl2.git#c2ee9627b4c7a4991557702d1fcabb177ce2e9dc"
 
