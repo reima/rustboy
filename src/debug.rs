@@ -100,9 +100,9 @@ fn dump_tiles<M: Mem>(m: &mut M) -> IoResult<()> {
     }
     let row = num / 16;
     let col = num % 16;
-    let pixels = data.mut_slice_from((row * 16 * 8 + col)*8);
+    let pixels = data.slice_from_mut((row * 16 * 8 + col)*8);
     for row in range(0u, 8u) {
-      expand_tile_row(tile, 0xe4, row, pixels.mut_slice_from(16*8*row));
+      expand_tile_row(tile, 0xe4, row, pixels.slice_from_mut(16*8*row));
     }
   }
 
@@ -145,12 +145,12 @@ fn dump_bg<M: Mem>(m: &mut M) -> IoResult<()> {
     for col in range(0u, 32u) {
       let tile_num = (map[row*32 + col] + tile_bias) as uint;
       let tile = tiles.slice_from(tile_num * 16);
-      let pixels = data.mut_slice_from((row*row_pitch + col)*8);
+      let pixels = data.slice_from_mut((row*row_pitch + col)*8);
       for tile_row in range(0u, 8u) {
         expand_tile_row(tile,
                         pal,
                         tile_row,
-                        pixels.mut_slice_from(tile_row*row_pitch));
+                        pixels.slice_from_mut(tile_row*row_pitch));
       }
     }
   }

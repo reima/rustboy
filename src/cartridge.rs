@@ -54,7 +54,7 @@ impl Cartridge {
 
     try!(file.seek(0, SeekSet));
 
-    for bank in range(0, rom_bank_count) {
+    for _ in range(0, rom_bank_count) {
       let mut bank = Vec::with_capacity(ROM_BANK_SIZE);
       try!(file.push(ROM_BANK_SIZE, &mut bank));
       rom_banks.push(bank);

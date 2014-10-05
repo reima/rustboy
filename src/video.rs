@@ -254,7 +254,7 @@ impl Video {
         map_y = bg_map_y;
       }
 
-      let pixel = self.screen.mut_slice_from((screen_y * SCREEN_WIDTH + screen_x) * 4);
+      let pixel = self.screen.slice_from_mut((screen_y * SCREEN_WIDTH + screen_x) * 4);
       let map_tile_x = map_x / TILE_WIDTH;
       let map_tile_y = map_y / TILE_HEIGHT;
       let tile_num = (self.vram[map_base + map_tile_y*BG_WIDTH_TILES + map_tile_x] + tiles_bias) as uint;
@@ -332,7 +332,7 @@ impl Video {
       for mut tile_x in range(0, TILE_WIDTH) {
         let screen_x = obj_x + tile_x;
         if OFFSET_X <= screen_x && screen_x < SCREEN_WIDTH + OFFSET_X {
-          let pixel = self.screen.mut_slice_from((screen_y * SCREEN_WIDTH + screen_x - OFFSET_X) * 4);
+          let pixel = self.screen.slice_from_mut((screen_y * SCREEN_WIDTH + screen_x - OFFSET_X) * 4);
           if (obj_flags & OBJ_FLAG_FLIP_X) != 0 {
             tile_x = TILE_WIDTH - 1 - tile_x;
           }
@@ -395,7 +395,7 @@ fn unpack_tile_pixel(tile: &[u8],
                      y: uint,
                      pixel: &mut [u8],
                      transp: bool) {
-  static colors: &'static [& 'static[u8]] = &[
+  static COLORS: &'static [& 'static[u8]] = &[
     &[224, 248, 208],
     &[136, 192, 112],
     &[52, 104, 86],
@@ -411,7 +411,7 @@ fn unpack_tile_pixel(tile: &[u8],
     return;
   }
 
-  pixel[0] = colors[color][2];
-  pixel[1] = colors[color][1];
-  pixel[2] = colors[color][0];
+  pixel[0] = COLORS[color][2];
+  pixel[1] = COLORS[color][1];
+  pixel[2] = COLORS[color][0];
 }

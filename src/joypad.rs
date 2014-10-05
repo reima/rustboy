@@ -45,7 +45,7 @@ impl Joypad {
   }
 
   pub fn reset(&mut self) {
-    for p in self.pressed.mut_iter() {
+    for p in self.pressed.iter_mut() {
       *p = false;
     }
   }

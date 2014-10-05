@@ -14,7 +14,7 @@ pub trait Mem {
 
 impl Mem for Vec<u8> {
   fn loadb(&mut self, addr: u16) -> u8 {
-    *self.get(addr as uint)
+    (*self)[addr as uint]
   }
 
   fn storeb(&mut self, addr: u16, val: u8) {
