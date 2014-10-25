@@ -4,17 +4,17 @@ use mem;
 // Statics
 //
 
-static CARRY_OFFSET:      uint = 4;
-static HALF_CARRY_OFFSET: uint = 5;
-static ADD_SUB_OFFSET:    uint = 6;
-static ZERO_OFFSET:       uint = 7;
+const CARRY_OFFSET:      uint = 4;
+const HALF_CARRY_OFFSET: uint = 5;
+const ADD_SUB_OFFSET:    uint = 6;
+const ZERO_OFFSET:       uint = 7;
 
-static CARRY_FLAG:        u8 = 1 << CARRY_OFFSET;
-static HALF_CARRY_FLAG:   u8 = 1 << HALF_CARRY_OFFSET;
-static ADD_SUB_FLAG:      u8 = 1 << ADD_SUB_OFFSET;
-static ZERO_FLAG:         u8 = 1 << ZERO_OFFSET;
+const CARRY_FLAG:        u8 = 1 << CARRY_OFFSET;
+const HALF_CARRY_FLAG:   u8 = 1 << HALF_CARRY_OFFSET;
+const ADD_SUB_FLAG:      u8 = 1 << ADD_SUB_OFFSET;
+const ZERO_FLAG:         u8 = 1 << ZERO_OFFSET;
 
-pub static CYCLES_PER_SEC: uint = 4194304; // 4.194304 MHz
+pub const CYCLES_PER_SEC: uint = 4194304; // 4.194304 MHz
 
 
 //

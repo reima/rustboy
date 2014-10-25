@@ -4,19 +4,19 @@ use mem;
 // Joypad
 //
 
-static INPUT_RIGHT:           u8 = 0b0000_0001;
-static INPUT_LEFT:            u8 = 0b0000_0010;
-static INPUT_UP:              u8 = 0b0000_0100;
-static INPUT_DOWN:            u8 = 0b0000_1000;
-static INPUT_BUTTON_A:        u8 = 0b0000_0001;
-static INPUT_BUTTON_B:        u8 = 0b0000_0010;
-static INPUT_SELECT:          u8 = 0b0000_0100;
-static INPUT_START:           u8 = 0b0000_1000;
-static SELECT_DIRECTION_KEYS: u8 = 0b0001_0000;
-static SELECT_BUTTON_KEYS:    u8 = 0b0010_0000;
+const INPUT_RIGHT:           u8 = 0b0000_0001;
+const INPUT_LEFT:            u8 = 0b0000_0010;
+const INPUT_UP:              u8 = 0b0000_0100;
+const INPUT_DOWN:            u8 = 0b0000_1000;
+const INPUT_BUTTON_A:        u8 = 0b0000_0001;
+const INPUT_BUTTON_B:        u8 = 0b0000_0010;
+const INPUT_SELECT:          u8 = 0b0000_0100;
+const INPUT_START:           u8 = 0b0000_1000;
+const SELECT_DIRECTION_KEYS: u8 = 0b0001_0000;
+const SELECT_BUTTON_KEYS:    u8 = 0b0010_0000;
 
-static INPUT_MASK:            u8 = 0b0000_1111;
-static SELECT_MASK:           u8 = 0b0011_0000;
+const INPUT_MASK:            u8 = 0b0000_1111;
+const SELECT_MASK:           u8 = 0b0011_0000;
 
 pub enum Button {
   Right = 0,

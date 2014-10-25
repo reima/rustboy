@@ -4,16 +4,16 @@ use mem;
 // Statics
 //
 
-static DIV_CYCLE_SHIFT: uint = 8;
-static TIMA_CYCLE_SHIFT: &'static [u16] = &[
+const DIV_CYCLE_SHIFT: uint = 8;
+const TIMA_CYCLE_SHIFT: &'static [u16] = &[
   10,  // =   4,096 Hz
   4,   // = 262,144 Hz
   6,   // =  65,536 Hz
   8,   // =  16,384 Hz
 ];
 
-static TIMER_START_FLAG: u8 = 0x04;
-static TIMER_INPUT_CLOCK_MASK: u8 = 0x03;
+const TIMER_START_FLAG: u8 = 0x04;
+const TIMER_INPUT_CLOCK_MASK: u8 = 0x03;
 
 
 //

@@ -96,14 +96,14 @@ impl VideoOut {
   fn new(scale: int) -> VideoOut {
     use sdl2::render::Renderer;
 
-    sdl2::init(sdl2::InitVideo);
+    sdl2::init(sdl2::INIT_VIDEO);
 
     let window_width = video::SCREEN_WIDTH as int * scale;
     let window_height = video::SCREEN_HEIGHT as int * scale;
 
     let renderer = match Renderer::new_with_window(window_width,
                                                    window_height,
-                                                   sdl2::video::Resizable) {
+                                                   sdl2::video::RESIZABLE) {
       Ok(renderer) => renderer,
       Err(err) => fail!("Failed to create renderer: {}", err)
     };

@@ -4,58 +4,58 @@ use mem;
 // Video
 //
 
-static MODE0_CYCLES: uint = 204;   // H-Blank
-static MODE1_CYCLES: uint = 4560;  // V-Blank
-static MODE2_CYCLES: uint = 80;    // Transfer to LCD
-static MODE3_CYCLES: uint = 172;   // Transfer to LCD
+const MODE0_CYCLES: uint = 204;   // H-Blank
+const MODE1_CYCLES: uint = 4560;  // V-Blank
+const MODE2_CYCLES: uint = 80;    // Transfer to LCD
+const MODE3_CYCLES: uint = 172;   // Transfer to LCD
 
-static MODE2_START: uint = 0;
-static MODE3_START: uint = MODE2_START + MODE2_CYCLES;
-static MODE0_START: uint = MODE3_START + MODE3_CYCLES;
+const MODE2_START: uint = 0;
+const MODE3_START: uint = MODE2_START + MODE2_CYCLES;
+const MODE0_START: uint = MODE3_START + MODE3_CYCLES;
 
-static ROW_CYCLES: uint = MODE0_CYCLES + MODE2_CYCLES + MODE3_CYCLES;
+const ROW_CYCLES: uint = MODE0_CYCLES + MODE2_CYCLES + MODE3_CYCLES;
 
-pub static SCREEN_REFRESH_CYCLES: uint = SCREEN_HEIGHT * ROW_CYCLES + MODE1_CYCLES;
+pub const SCREEN_REFRESH_CYCLES: uint = SCREEN_HEIGHT * ROW_CYCLES + MODE1_CYCLES;
 
-static STAT_MODE0_IRQ: u8        = 0b0000_1000;
-static STAT_MODE1_IRQ: u8        = 0b0001_0000;
-static STAT_MODE2_IRQ: u8        = 0b0010_0000;
-static STAT_COINCIDENCE_IRQ: u8  = 0b0100_0000;
-static STAT_IRQ_MASK: u8         = 0b0111_1000;
-static STAT_COINCIDENCE_FLAG: u8 = 0b0000_0100;
-static STAT_MODE_MASK: u8        = 0b0000_0011;
+const STAT_MODE0_IRQ: u8        = 0b0000_1000;
+const STAT_MODE1_IRQ: u8        = 0b0001_0000;
+const STAT_MODE2_IRQ: u8        = 0b0010_0000;
+const STAT_COINCIDENCE_IRQ: u8  = 0b0100_0000;
+const STAT_IRQ_MASK: u8         = 0b0111_1000;
+const STAT_COINCIDENCE_FLAG: u8 = 0b0000_0100;
+const STAT_MODE_MASK: u8        = 0b0000_0011;
 
-static FLAG_ENABLE_BG_WIN: u8 = 0b0000_0001;
-static FLAG_ENABLE_OBJ: u8    = 0b0000_0010;
-static FLAG_OBJ_SIZE: u8      = 0b0000_0100;
-static FLAG_BG_MAP: u8        = 0b0000_1000;
-static FLAG_BG_WIN_TILES: u8  = 0b0001_0000;
-static FLAG_ENABLE_WIN: u8    = 0b0010_0000;
-static FLAG_WIN_MAP: u8       = 0b0100_0000;
-static FLAG_ENABLE: u8        = 0b1000_0000;
+const FLAG_ENABLE_BG_WIN: u8 = 0b0000_0001;
+const FLAG_ENABLE_OBJ: u8    = 0b0000_0010;
+const FLAG_OBJ_SIZE: u8      = 0b0000_0100;
+const FLAG_BG_MAP: u8        = 0b0000_1000;
+const FLAG_BG_WIN_TILES: u8  = 0b0001_0000;
+const FLAG_ENABLE_WIN: u8    = 0b0010_0000;
+const FLAG_WIN_MAP: u8       = 0b0100_0000;
+const FLAG_ENABLE: u8        = 0b1000_0000;
 
-static TILES_BASE0: uint = 0x800;
-static TILES_BIAS0: u8 = 128u8;
-static TILES_BASE1: uint = 0x000;
-static TILES_BIAS1: u8 = 0u8;
+const TILES_BASE0: uint = 0x800;
+const TILES_BIAS0: u8 = 128u8;
+const TILES_BASE1: uint = 0x000;
+const TILES_BIAS1: u8 = 0u8;
 
-static BG_WIN_MAP_BASE0: uint = 0x1800;
-static BG_WIN_MAP_BASE1: uint = 0x1c00;
+const BG_WIN_MAP_BASE0: uint = 0x1800;
+const BG_WIN_MAP_BASE1: uint = 0x1c00;
 
-static TILE_WIDTH: uint  = 8;
-static TILE_HEIGHT: uint = 8;
-static TILE_BYTES: uint  = 16;
+const TILE_WIDTH: uint  = 8;
+const TILE_HEIGHT: uint = 8;
+const TILE_BYTES: uint  = 16;
 
-static BG_WIDTH_TILES:  uint = 32;
-static BG_HEIGHT_TILES: uint = 32;
+const BG_WIDTH_TILES:  uint = 32;
+const BG_HEIGHT_TILES: uint = 32;
 
-static OBJ_FLAG_PALETTE:  u8 = 0b0001_0000;
-static OBJ_FLAG_FLIP_X:   u8 = 0b0010_0000;
-static OBJ_FLAG_FLIP_Y:   u8 = 0b0100_0000;
-static OBJ_FLAG_PRIORITY: u8 = 0b1000_0000;
+const OBJ_FLAG_PALETTE:  u8 = 0b0001_0000;
+const OBJ_FLAG_FLIP_X:   u8 = 0b0010_0000;
+const OBJ_FLAG_FLIP_Y:   u8 = 0b0100_0000;
+const OBJ_FLAG_PRIORITY: u8 = 0b1000_0000;
 
-pub static SCREEN_WIDTH: uint = 160;
-pub static SCREEN_HEIGHT: uint = 144;  // After this many rows, V-Blank starts
+pub const SCREEN_WIDTH: uint = 160;
+pub const SCREEN_HEIGHT: uint = 144;  // After this many rows, V-Blank starts
 
 pub struct Video {
   // Implementation state

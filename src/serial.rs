@@ -5,7 +5,7 @@ use std::io::Writer;
 // Serial I/O
 //
 
-static SERIAL_TRANSFER_FLAG: u8 = 0x80;
+const SERIAL_TRANSFER_FLAG: u8 = 0x80;
 
 pub struct SerialIO<'a> {
   data: u8, // SB register
