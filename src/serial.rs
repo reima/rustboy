@@ -24,7 +24,7 @@ impl<'a> mem::Mem for SerialIO<'a> {
     match addr {
       0xff01 => self.data,
       0xff02 => self.control,
-      _ => fail!("invalid serial I/O register"),
+      _ => panic!("invalid serial I/O register"),
     }
   }
 
@@ -48,7 +48,7 @@ impl<'a> mem::Mem for SerialIO<'a> {
           self.control &= !SERIAL_TRANSFER_FLAG;
         }
       }
-      _ => fail!("invalid serial I/O register"),
+      _ => panic!("invalid serial I/O register"),
     }
   }
 }

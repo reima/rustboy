@@ -67,7 +67,7 @@ impl mem::Mem for Timer {
       0xff05 => self.tima,                                  // TIMA register
       0xff06 => self.tma,                                   // TMA register
       0xff07 => self.tac,                                   // TAC register
-      _ => fail!("invalid timer register"),
+      _ => panic!("invalid timer register"),
     }
   }
 
@@ -77,7 +77,7 @@ impl mem::Mem for Timer {
       0xff05 => self.tima = val,     // TODO: is this correct?
       0xff06 => self.tma = val,
       0xff07 => { self.tac = val; self.tima_cycles_mod = 0 },
-      _ => fail!("invalid timer register"),
+      _ => panic!("invalid timer register"),
     }
   }
 }

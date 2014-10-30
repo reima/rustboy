@@ -362,7 +362,7 @@ impl mem::Mem for Video {
       0xff49 => self.obp1,
       0xff4a => self.wy,
       0xff4b => self.wx,
-      _ => fail!("invalid video address: ${:04X}", addr),
+      _ => panic!("invalid video address: ${:04X}", addr),
     }
   }
 
@@ -384,7 +384,7 @@ impl mem::Mem for Video {
       0xff49 => self.obp1 = val,
       0xff4a => self.wy = val,
       0xff4b => self.wx = val,
-      _ => fail!("invalid video address: ${:04X}", addr),
+      _ => panic!("invalid video address: ${:04X}", addr),
     }
   }
 }
