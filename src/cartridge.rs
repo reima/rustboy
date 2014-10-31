@@ -38,7 +38,7 @@ impl Cartridge {
       match cartridge_type {
         0x00 => None,
         0x01 => Some(MBC1),
-        _ => fail!("unsupported cartridge type: 0x{:02X}", cartridge_type)
+        _ => panic!("unsupported cartridge type: 0x{:02X}", cartridge_type)
       };
 
     let rom_size = header[0x48];
@@ -48,7 +48,7 @@ impl Cartridge {
         0x52  => 72,
         0x53  => 80,
         0x54  => 96,
-        _ => fail!("unsupported ROM size: 0x{:02X}", rom_size),
+        _ => panic!("unsupported ROM size: 0x{:02X}", rom_size),
       };
     let mut rom_banks = Vec::with_capacity(rom_bank_count);
 
@@ -62,7 +62,7 @@ impl Cartridge {
 
     let ram_size = header[0x49];
     if ram_size != 0x00 {
-      fail!("unsupported RAM size: 0x{:02X}", ram_size);
+      panic!("unsupported RAM size: 0x{:02X}", ram_size);
     }
 
     let cart = Cartridge {

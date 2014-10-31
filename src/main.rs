@@ -105,7 +105,7 @@ impl VideoOut {
                                                    window_height,
                                                    sdl2::video::RESIZABLE) {
       Ok(renderer) => renderer,
-      Err(err) => fail!("Failed to create renderer: {}", err)
+      Err(err) => panic!("Failed to create renderer: {}", err)
     };
 
     let texture = match renderer.create_texture(sdl2::pixels::ARGB8888,
@@ -113,7 +113,7 @@ impl VideoOut {
                                                 video::SCREEN_WIDTH as int,
                                                 video::SCREEN_HEIGHT as int) {
       Ok(texture) => texture,
-      Err(err) => fail!("Failed to create texture: {}", err),
+      Err(err) => panic!("Failed to create texture: {}", err),
     };
 
     VideoOut { renderer: box renderer, texture: box texture }
@@ -172,7 +172,7 @@ fn main() {
 
   let mut cart = match cartridge::Cartridge::from_path(&Path::new(path.as_slice())) {
     Ok(cart) => box cart,
-    Err(e)   => fail!("I/O error: {}", e),
+    Err(e)   => panic!("I/O error: {}", e),
   };
 
   if disassemble {

@@ -32,7 +32,7 @@ impl mem::Mem for InterruptCtrl {
     match addr {
       0xff0f => self.flag,
       0xffff => self.enable,
-      _ => fail!("invalid interrupt register"),
+      _ => panic!("invalid interrupt register"),
     }
   }
 
@@ -40,7 +40,7 @@ impl mem::Mem for InterruptCtrl {
     match addr {
       0xff0f => self.flag = val,
       0xffff => self.enable = val,
-      _ => fail!("invalid interrupt register"),
+      _ => panic!("invalid interrupt register"),
     }
   }
 }

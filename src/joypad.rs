@@ -91,7 +91,7 @@ impl Joypad {
 impl mem::Mem for Joypad {
   fn loadb(&mut self, addr: u16) -> u8 {
     if addr != 0xff00 {
-      fail!("invalid joypad register");
+      panic!("invalid joypad register");
     }
 
     self.p1
@@ -99,7 +99,7 @@ impl mem::Mem for Joypad {
 
   fn storeb(&mut self, addr: u16, val: u8) {
     if addr != 0xff00 {
-      fail!("invalid joypad register");
+      panic!("invalid joypad register");
     }
 
     self.p1 = (val & SELECT_MASK) | (self.p1 & !SELECT_MASK);

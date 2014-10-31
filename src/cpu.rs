@@ -176,7 +176,7 @@ impl Addr8 {
           _ => ()
         }
       }
-      _  => fail!("invalid addressing mode for 8-bit store")
+      _  => panic!("invalid addressing mode for 8-bit store")
     }
   }
 }
@@ -209,7 +209,7 @@ impl Addr16 {
     match *self {
       Ind16(addr)   => cpu.mem.storew(addr, val),
       Reg16Dir(r)   => r.store(cpu, val),
-      _ => fail!("invalid addressing mode for 16-bit store")
+      _ => panic!("invalid addressing mode for 16-bit store")
     }
   }
 }
@@ -329,7 +329,7 @@ fn decode_addr(code: u8) -> Addr8 {
     0x05 => Reg8Dir(L),
     0x06 => Reg16Ind8(HL),
     0x07 => Reg8Dir(A),
-    _    => fail!("logic error"),
+    _    => panic!("logic error"),
   }
 }
 
@@ -472,7 +472,7 @@ pub fn decode<R, D: Decoder<R>>(d: &mut D) -> R {
                 d.res((extra >> 3) & 0b111, addr),
         0xc0...0xf8 =>
                 d.set((extra >> 3) & 0b111, addr),
-        _ => fail!("logic error")
+        _ => panic!("logic error")
       }
     }
     0xcc => { let imm = fetchw(d); d.call(CondZ, Imm16(imm)) }
@@ -687,7 +687,7 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
   }
 
   fn stop(&mut self, val: u8) -> u8 {
-    //fail!("instruction not implemented: stop")
+    //panic!("instruction not implemented: stop")
     4
   }
 
@@ -1149,6 +1149,6 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
 
   // Undefined/illegal
   fn undef(&mut self, opcode: u8) -> u8 {
-    fail!("illegal instruction: {:02X}", opcode)
+    panic!("illegal instruction: {:02X}", opcode)
   }
 }
