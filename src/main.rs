@@ -88,7 +88,7 @@ impl<'a> Mem for MemMap<'a> {
 //
 
 struct VideoOut {
-  renderer: Box<sdl2::render::Renderer<sdl2::video::Window>>,
+  renderer: Box<sdl2::render::Renderer>,
   texture: Box<sdl2::render::Texture>,
 }
 
@@ -126,7 +126,10 @@ impl VideoOut {
   }
 
   fn set_title(&self, title: &str) {
-    self.renderer.get_parent().set_title(title);
+    match self.renderer.get_parent() {
+      &sdl2::render::WindowParent(ref window) => window.set_title(title),
+      _ => (),
+    }
   }
 }
 
