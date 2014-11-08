@@ -82,8 +82,8 @@ impl Cartridge {
 impl Mem for Cartridge {
   fn loadb(&mut self, addr: u16) -> u8 {
     match addr {
-      0x0000...0x3fff => self.rom_banks.get_mut(0).loadb(addr),
-      0x4000...0x7fff => self.rom_banks.get_mut(self.rom_bank as uint).loadb(addr - 0x4000),
+      0x0000...0x3fff => self.rom_banks[0].loadb(addr),
+      0x4000...0x7fff => self.rom_banks[self.rom_bank as uint].loadb(addr - 0x4000),
       0xa000...0xbfff => { debug!("RAM load at ${:04X}", addr); 0xff },
       _ => { debug!("unsupported cartridge address ${:04X}", addr); 0xff },
     }

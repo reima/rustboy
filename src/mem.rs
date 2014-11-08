@@ -18,6 +18,6 @@ impl Mem for Vec<u8> {
   }
 
   fn storeb(&mut self, addr: u16, val: u8) {
-    *self.get_mut(addr as uint) = val;
+    (*self)[addr as uint] = val;
   }
 }
