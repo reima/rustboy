@@ -220,9 +220,9 @@ impl Debugger {
 
     let command = words[0];
     match command {
-      "q" => Some(Quit), // quit
-      "s" => Some(Step), // step
-      "r" => Some(Run), // run
+      "q" => Some(DebuggerCommand::Quit), // quit
+      "s" => Some(DebuggerCommand::Step), // step
+      "r" => Some(DebuggerCommand::Run), // run
       "regs" => { print_regs(cpu); None }, // print registers
       "m" => { // print memory
         if words.len() >= 2 {

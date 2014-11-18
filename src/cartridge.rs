@@ -37,7 +37,7 @@ impl Cartridge {
     let mbc =
       match cartridge_type {
         0x00 => None,
-        0x01 => Some(MBC1),
+        0x01 => Some(MBC::MBC1),
         _ => panic!("unsupported cartridge type: 0x{:02X}", cartridge_type)
       };
 
@@ -92,7 +92,7 @@ impl Mem for Cartridge {
   fn storeb(&mut self, addr: u16, val: u8) {
     match self.mbc {
       None => info!("store 0x{:02X} in cartridge ROM at ${:04X}", val, addr),
-      Some(MBC1) => {
+      Some(MBC::MBC1) => {
         match addr {
           0x0000...0x1fff => debug!("RAM enable"),
           0x2000...0x3fff => { // set lower 5 bits of ROM bank

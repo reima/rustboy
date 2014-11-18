@@ -144,7 +144,7 @@ impl Video {
     self.update_stat();
 
     if self.dma != 0xff {
-      signals.push(DMA(self.dma));
+      signals.push(Signal::DMA(self.dma));
       self.dma = 0xff;
     }
 
@@ -165,7 +165,7 @@ impl Video {
 
     if self.mode != old_mode {
       if self.mode == 1 {
-        signals.push(VBlank);
+        signals.push(Signal::VBlank);
       }
 
       match self.mode {
@@ -183,7 +183,7 @@ impl Video {
     }
 
     if lcd_intr {
-      signals.push(LCD);
+      signals.push(Signal::LCD);
     }
 
     signals

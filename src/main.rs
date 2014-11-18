@@ -109,7 +109,7 @@ impl VideoOut {
     };
 
     let texture = match renderer.create_texture(sdl2::pixels::ARGB8888,
-                                                sdl2::render::AccessStreaming,
+                                                sdl2::render::TextureAccess::Streaming,
                                                 video::SCREEN_WIDTH as int,
                                                 video::SCREEN_HEIGHT as int) {
       Ok(texture) => texture,
@@ -127,7 +127,7 @@ impl VideoOut {
 
   fn set_title(&self, title: &str) {
     match self.renderer.get_parent() {
-      &sdl2::render::WindowParent(ref window) => window.set_title(title),
+      &sdl2::render::RendererParent::Window(ref window) => window.set_title(title),
       _ => (),
     }
   }
@@ -136,14 +136,14 @@ impl VideoOut {
 
 fn keymap(code: sdl2::keycode::KeyCode) -> Option<joypad::Button> {
   match code {
-    sdl2::keycode::UpKey     => Some(joypad::Up),
-    sdl2::keycode::DownKey   => Some(joypad::Down),
-    sdl2::keycode::LeftKey   => Some(joypad::Left),
-    sdl2::keycode::RightKey  => Some(joypad::Right),
-    sdl2::keycode::ReturnKey => Some(joypad::Start),
-    sdl2::keycode::RShiftKey => Some(joypad::Select),
-    sdl2::keycode::CKey      => Some(joypad::ButtonA),
-    sdl2::keycode::XKey      => Some(joypad::ButtonB),
+    sdl2::keycode::KeyCode::Up     => Some(joypad::Button::Up),
+    sdl2::keycode::KeyCode::Down   => Some(joypad::Button::Down),
+    sdl2::keycode::KeyCode::Left   => Some(joypad::Button::Left),
+    sdl2::keycode::KeyCode::Right  => Some(joypad::Button::Right),
+    sdl2::keycode::KeyCode::Return => Some(joypad::Button::Start),
+    sdl2::keycode::KeyCode::RShift => Some(joypad::Button::Select),
+    sdl2::keycode::KeyCode::C      => Some(joypad::Button::A),
+    sdl2::keycode::KeyCode::X      => Some(joypad::Button::B),
     _ => None,
   }
 }
@@ -208,7 +208,7 @@ fn main() {
   let video_out = VideoOut::new(4);
   video_out.set_title("Rustboy");
 
-  let mut state = Paused;
+  let mut state = State::Paused;
   let mut debugger = debug::Debugger::new();
 
   let counts_per_sec = sdl2::timer::get_performance_frequency();
@@ -220,12 +220,12 @@ fn main() {
 
   println!("c/s: {:u}; c/f: {:u}", counts_per_sec, counts_per_frame);
 
-  while state != Done {
-    if state == Paused || state == Step {
+  while state != State::Done {
+    if state == State::Paused || state == State::Step {
       match debugger.prompt(&mut cpu) {
-        debug::Quit => break,
-        debug::Run  => state = Running,
-        debug::Step => state = Step,
+        debug::DebuggerCommand::Quit => break,
+        debug::DebuggerCommand::Run  => state = State::Running,
+        debug::DebuggerCommand::Step => state = State::Step,
       }
     }
 
@@ -234,7 +234,7 @@ fn main() {
       let cycles = cpu.step();
 
       match cpu.mem.timer.tick(cycles) {
-        Some(timer::TIMAOverflow) => cpu.mem.intr.irq(interrupt::IRQ_TIMER),
+        Some(timer::Signal::TIMAOverflow) => cpu.mem.intr.irq(interrupt::IRQ_TIMER),
         None => (),
       }
 
@@ -242,7 +242,7 @@ fn main() {
       let video_signals = cpu.mem.video.tick(cycles);
       for signal in video_signals.iter() {
         match *signal {
-          video::DMA(base) => {
+          video::Signal::DMA(base) => {
             // Do DMA transfer instantaneously
             let base_addr = base as u16 << 8;
             for offset in range(0x00u16, 0xa0u16) {
@@ -250,12 +250,12 @@ fn main() {
               cpu.mem.storeb(0xfe00 + offset, val);
             }
           },
-          video::VBlank => {
+          video::Signal::VBlank => {
             video_out.blit_and_present(cpu.mem.video.screen);
             cpu.mem.intr.irq(interrupt::IRQ_VBLANK);
             new_frame = true;
           }
-          video::LCD    => cpu.mem.intr.irq(interrupt::IRQ_LCD),
+          video::Signal::LCD    => cpu.mem.intr.irq(interrupt::IRQ_LCD),
         }
       }
 
@@ -283,11 +283,11 @@ fn main() {
       }
 
       if debugger.should_break(&cpu) {
-        state = Paused;
+        state = State::Paused;
         break;
       }
 
-      if state == Step {
+      if state == State::Step {
         // Stop emulation loop after one instruction
         break;
       }
@@ -296,25 +296,25 @@ fn main() {
     // Event handling loop
     loop {
       match sdl2::event::poll_event() {
-        sdl2::event::QuitEvent(_) => { state = Done; break }
-        sdl2::event::KeyDownEvent(_, _, key, _, _) => {
+        sdl2::event::Event::Quit(_) => { state = State::Done; break }
+        sdl2::event::Event::KeyDown(_, _, key, _, _) => {
           match keymap(key) {
             Some(button) => cpu.mem.joypad.set_button(button, true),
             None => {
               match key {
-                sdl2::keycode::EscapeKey => { state = Paused },
+                sdl2::keycode::KeyCode::Escape => { state = State::Paused },
                 _ => (),
               }
             }
           }
         },
-        sdl2::event::KeyUpEvent(_, _, key, _, _) => {
+        sdl2::event::Event::KeyUp(_, _, key, _, _) => {
           match keymap(key) {
             Some(button) => cpu.mem.joypad.set_button(button, false),
             None => (),
           }
         }
-        sdl2::event::NoEvent => break,
+        sdl2::event::Event::None => break,
         _ => (),
       }
     }

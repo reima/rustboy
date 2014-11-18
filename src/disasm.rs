@@ -1,5 +1,4 @@
 use cpu::{Addr8, Addr16, Cond, Decoder};
-use cpu;
 use mem;
 
 pub struct Disasm<'a, M:'a> {
@@ -9,39 +8,39 @@ pub struct Disasm<'a, M:'a> {
 
 fn addr16_to_str(addr: Addr16) -> String {
   match addr {
-    cpu::Imm16(val)    => format!("${:04X}", val),
-    cpu::Ind16(addr)   => format!("(${:04X})", addr),
-    cpu::Reg16Dir(r)   => format!("{}", r),
+    Addr16::Imm(val)    => format!("${:04X}", val),
+    Addr16::Ind(addr)   => format!("(${:04X})", addr),
+    Addr16::Reg16Dir(r) => format!("{}", r),
   }
 }
 
 fn addr8_to_str(addr: Addr8) -> String {
   match addr {
-    cpu::Imm8(val)       => format!("${:02X}", val),
-    cpu::Ind8(offset)    => format!("($FF00+${:02X})", offset),
-    cpu::Imm16Ind8(addr) => format!("(${:04X})", addr),
-    cpu::Reg8Dir(r)      => format!("{}", r),
-    cpu::Reg8Ind8(r)     => format!("($FF00+{})", r),
-    cpu::Reg16Ind8(r)    => format!("({})", r),
-    cpu::Reg16Ind8Inc(r) => format!("({}+)", r),
-    cpu::Reg16Ind8Dec(r) => format!("({}-)", r),
+    Addr8::Imm(val)       => format!("${:02X}", val),
+    Addr8::Ind(offset)    => format!("($FF00+${:02X})", offset),
+    Addr8::Imm16Ind(addr) => format!("(${:04X})", addr),
+    Addr8::Reg8Dir(r)     => format!("{}", r),
+    Addr8::Reg8Ind(r)     => format!("($FF00+{})", r),
+    Addr8::Reg16Ind(r)    => format!("({})", r),
+    Addr8::Reg16IndInc(r) => format!("({}+)", r),
+    Addr8::Reg16IndDec(r) => format!("({}-)", r),
   }
 }
 
 fn cond_to_str(cond: Cond) -> &'static str {
   match cond {
-    cpu::CondNone => "",
-    cpu::CondZ    => "Z",
-    cpu::CondNZ   => "NZ",
-    cpu::CondC    => "C",
-    cpu::CondNC   => "NC",
+    Cond::None => "",
+    Cond::Z    => "Z",
+    Cond::NZ   => "NZ",
+    Cond::C    => "C",
+    Cond::NC   => "NC",
   }
 }
 
 fn with_cond(mnemonic: &str, cond: Cond) -> String {
   match cond {
-    cpu::CondNone => mnemonic.to_string(),
-    _             => format!("{:s} {:s},", mnemonic, cond_to_str(cond)),
+    Cond::None => mnemonic.to_string(),
+    _          => format!("{:s} {:s},", mnemonic, cond_to_str(cond)),
   }
 }
 

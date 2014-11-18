@@ -49,7 +49,7 @@ impl Timer {
         if self.tima as u16 + increment > 0xff {
           // Overflow, reset to TMA
           self.tima = self.tma;
-          result = Some(TIMAOverflow);
+          result = Some(Signal::TIMAOverflow);
         } else {
           self.tima += increment as u8;
         }

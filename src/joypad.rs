@@ -23,8 +23,8 @@ pub enum Button {
   Left = 1,
   Up = 2,
   Down = 3,
-  ButtonA = 4,
-  ButtonB = 5,
+  A = 4,
+  B = 5,
   Select = 6,
   Start = 7,
 }
@@ -55,31 +55,31 @@ impl Joypad {
     let mut input = INPUT_MASK;
 
     if (self.p1 & SELECT_DIRECTION_KEYS) == 0 {
-      if self.pressed[Right as uint] {
+      if self.pressed[Button::Right as uint] {
         input &= !INPUT_RIGHT;
       }
-      if self.pressed[Left as uint] {
+      if self.pressed[Button::Left as uint] {
         input &= !INPUT_LEFT;
       }
-      if self.pressed[Up as uint] {
+      if self.pressed[Button::Up as uint] {
         input &= !INPUT_UP;
       }
-      if self.pressed[Down as uint] {
+      if self.pressed[Button::Down as uint] {
         input &= !INPUT_DOWN;
       }
     }
 
     if (self.p1 & SELECT_BUTTON_KEYS) == 0 {
-      if self.pressed[ButtonA as uint] {
+      if self.pressed[Button::A as uint] {
         input &= !INPUT_BUTTON_A;
       }
-      if self.pressed[ButtonB as uint] {
+      if self.pressed[Button::B as uint] {
         input &= !INPUT_BUTTON_B;
       }
-      if self.pressed[Select as uint] {
+      if self.pressed[Button::Select as uint] {
         input &= !INPUT_SELECT;
       }
-      if self.pressed[Start as uint] {
+      if self.pressed[Button::Start as uint] {
         input &= !INPUT_START;
       }
     }
