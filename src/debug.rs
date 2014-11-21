@@ -27,7 +27,7 @@ fn disassemble<M: Mem>(mem: &mut M, addr: u16) {
     for a in range(start_addr, end_addr) {
       print!(" {:02X}", mem.loadb(a));
     }
-    println!("\t{:s}", instr);
+    println!("\t{}", instr);
   }
 }
 
@@ -60,7 +60,7 @@ fn print_mem<M: Mem>(mem: &mut M, addr: u16) {
 }
 
 fn print_regs<M>(cpu: &cpu::Cpu<M>) {
-  println!("AF={:02X}{:02X} BC={:02X}{:02X} DE={:02X}{:02X} HL={:02X}{:02X} SP={:04X} PC={:04X} CY={:u}",
+  println!("AF={:02X}{:02X} BC={:02X}{:02X} DE={:02X}{:02X} HL={:02X}{:02X} SP={:04X} PC={:04X} CY={}",
            cpu.regs.a, cpu.regs.f,
            cpu.regs.b, cpu.regs.c,
            cpu.regs.d, cpu.regs.e,
@@ -83,7 +83,7 @@ fn expand_tile_row(tile: &[u8], palette: u8, row: uint, pixels: &mut [u8]) {
 fn write_pgm(path: &Path, width: uint, height: uint, data: &[u8]) -> IoResult<()> {
   let mut output = File::create(path).unwrap();
   try!(output.write_line("P5"));
-  try!(output.write_line(format!("{:u} {:u}", width, height).as_slice()));
+  try!(output.write_line(format!("{} {}", width, height).as_slice()));
   try!(output.write_line("3"));
   try!(output.write(data));
 
@@ -228,7 +228,7 @@ impl Debugger {
         if words.len() >= 2 {
           match parse_addr(words[1]) {
             Some(addr) => print_mem(&mut cpu.mem, addr),
-            None       => error!("Invalid address: {:s}", words[1]),
+            None       => error!("Invalid address: {}", words[1]),
           }
         }
         None
@@ -238,7 +238,7 @@ impl Debugger {
         if words.len() >= 2 {
           match parse_addr(words[1]) {
             Some(a) => addr = a,
-            None    => error!("Invalid address: {:s}", words[1]),
+            None    => error!("Invalid address: {}", words[1]),
           }
         }
         disassemble(&mut cpu.mem, addr);
@@ -263,7 +263,7 @@ impl Debugger {
                 self.remove_breakpoint(addr);
               }
             },
-            None => error!("Invalid address: {:s}", words[1]),
+            None => error!("Invalid address: {}", words[1]),
           }
         }
         None
@@ -283,7 +283,7 @@ impl Debugger {
         None
       },
       _ => {
-        error!("Unknown command: {:s}", command);
+        error!("Unknown command: {}", command);
         None
       }
     }

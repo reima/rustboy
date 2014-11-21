@@ -160,7 +160,7 @@ enum State {
 fn main() {
   let args = std::os::args();
   if args.len() != 2 && !(args.len() == 3 && args[1] == "-d".to_string()) {
-    println!("Usage: {:s} [-d] rom.gb", args[0]);
+    println!("Usage: {} [-d] rom.gb", args[0]);
     return;
   }
 
@@ -183,13 +183,13 @@ fn main() {
     let mut d = disasm::Disasm { mem: &mut *cart, pc: 0 };
     while d.pc <= 0x7fff {
       let pc = d.pc;
-      println!("${:04X}\t{:s}", pc, cpu::decode(&mut d));
+      println!("${:04X}\t{}", pc, cpu::decode(&mut d));
     }
     return;
   }
 
-  println!("Name: {:s}", cart.title);
-  println!("Type: {:u}", cart.cartridge_type);
+  println!("Name: {}", cart.title);
+  println!("Type: {}", cart.cartridge_type);
 
   let memmap = MemMap {
     cart: cart,
@@ -218,7 +218,7 @@ fn main() {
   let mut last_fps_update = last_frame_start_count;
   let mut frames = 0;
 
-  println!("c/s: {:u}; c/f: {:u}", counts_per_sec, counts_per_frame);
+  println!("c/s: {}; c/f: {}", counts_per_sec, counts_per_frame);
 
   while state != State::Done {
     if state == State::Paused || state == State::Step {

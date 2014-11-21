@@ -40,24 +40,24 @@ fn cond_to_str(cond: Cond) -> &'static str {
 fn with_cond(mnemonic: &str, cond: Cond) -> String {
   match cond {
     Cond::None => mnemonic.to_string(),
-    _          => format!("{:s} {:s},", mnemonic, cond_to_str(cond)),
+    _          => format!("{} {},", mnemonic, cond_to_str(cond)),
   }
 }
 
 fn unary8(mnemonic: &str, addr: Addr8) -> String {
-  format!("{:s} {:s}", mnemonic, addr8_to_str(addr))
+  format!("{} {}", mnemonic, addr8_to_str(addr))
 }
 
 fn binary8(mnemonic: &str, addr1: Addr8, addr2: Addr8) -> String {
-  format!("{:s} {:s}, {:s}", mnemonic, addr8_to_str(addr1), addr8_to_str(addr2))
+  format!("{} {}, {}", mnemonic, addr8_to_str(addr1), addr8_to_str(addr2))
 }
 
 fn unary16(mnemonic: &str, addr: Addr16) -> String {
-  format!("{:s} {:s}", mnemonic, addr16_to_str(addr))
+  format!("{} {}", mnemonic, addr16_to_str(addr))
 }
 
 fn binary16(mnemonic: &str, addr1: Addr16, addr2: Addr16) -> String {
-  format!("{:s} {:s}, {:s}", mnemonic, addr16_to_str(addr1), addr16_to_str(addr2))
+  format!("{} {}, {}", mnemonic, addr16_to_str(addr1), addr16_to_str(addr2))
 }
 
 impl<'a, M: mem::Mem> Decoder<String> for Disasm<'a, M> {
@@ -74,23 +74,23 @@ impl<'a, M: mem::Mem> Decoder<String> for Disasm<'a, M> {
   fn di  (&mut self)          -> String { "DI".to_string() }
 
   fn halt(&mut self)          -> String { "HALT".to_string() }
-  fn stop(&mut self, val: u8) -> String { format!("STOP {:u}", val) }
+  fn stop(&mut self, val: u8) -> String { format!("STOP {}", val) }
 
   // Jump/call
   fn jp  (&mut self, cond: Cond, addr: Addr16) -> String { unary16(with_cond("JP", cond).as_slice(), addr) }
-  fn jr  (&mut self, cond: Cond, rel: i8)      -> String { format!("{:s} {:d}", with_cond("JR", cond), rel) }
+  fn jr  (&mut self, cond: Cond, rel: i8)      -> String { format!("{} {}", with_cond("JR", cond), rel) }
 
   fn call(&mut self, cond: Cond, addr: Addr16) -> String { unary16(with_cond("CALL", cond).as_slice(), addr) }
   fn rst (&mut self, addr: u8)                 -> String { format!("RST ${:02X}", addr) }
 
-  fn ret (&mut self, cond: Cond)               -> String { format!("RET {:s}", cond_to_str(cond)) }
+  fn ret (&mut self, cond: Cond)               -> String { format!("RET {}", cond_to_str(cond)) }
   fn reti(&mut self)                           -> String {         "RETI".to_string() }
 
   // Load/store/move
   fn ld8 (&mut self, dst: Addr8,  src: Addr8)  -> String { binary8 ("LD", dst, src) }
   fn ld16(&mut self, dst: Addr16, src: Addr16) -> String { binary16("LD", dst, src) }
   fn ldh (&mut self, dst: Addr8,  src: Addr8)  -> String { binary8 ("LDH", dst, src) }
-  fn ldhl(&mut self, rel: i8)                  -> String { format! ("LDHL SP, {:d}", rel) }
+  fn ldhl(&mut self, rel: i8)                  -> String { format! ("LDHL SP, {}", rel) }
 
   fn push(&mut self, src: Addr16)              -> String { unary16 ("PUSH", src) }
   fn pop (&mut self, dst: Addr16)              -> String { unary16 ("POP", dst) }
@@ -98,7 +98,7 @@ impl<'a, M: mem::Mem> Decoder<String> for Disasm<'a, M> {
   // Arithmetic/logic
   fn add8 (&mut self, src: Addr8)               -> String { unary8  ("ADD A,", src) }
   fn add16(&mut self, dst: Addr16, src: Addr16) -> String { binary16("ADD", dst, src) }
-  fn addsp(&mut self, rel: i8)                  -> String { format! ("ADD SP, {:d}", rel) }
+  fn addsp(&mut self, rel: i8)                  -> String { format! ("ADD SP, {}", rel) }
   fn adc  (&mut self, src: Addr8)               -> String { unary8  ("ADC A,", src) }
 
   fn sub  (&mut self, src: Addr8)               -> String { unary8  ("SUB", src) }
@@ -137,9 +137,9 @@ impl<'a, M: mem::Mem> Decoder<String> for Disasm<'a, M> {
   fn sra (&mut self, dst: Addr8)          -> String { unary8 ("SRA", dst) }
   fn srl (&mut self, dst: Addr8)          -> String { unary8 ("SRL", dst) }
 
-  fn bit (&mut self, bit: u8, src: Addr8) -> String { format!("BIT {:u}, {:s}", bit, addr8_to_str(src)) }
-  fn res (&mut self, bit: u8, dst: Addr8) -> String { format!("RES {:u}, {:s}", bit, addr8_to_str(dst)) }
-  fn set (&mut self, bit: u8, dst: Addr8) -> String { format!("SET {:u}, {:s}", bit, addr8_to_str(dst)) }
+  fn bit (&mut self, bit: u8, src: Addr8) -> String { format!("BIT {}, {}", bit, addr8_to_str(src)) }
+  fn res (&mut self, bit: u8, dst: Addr8) -> String { format!("RES {}, {}", bit, addr8_to_str(dst)) }
+  fn set (&mut self, bit: u8, dst: Addr8) -> String { format!("SET {}, {}", bit, addr8_to_str(dst)) }
 
   fn swap(&mut self, dst: Addr8)          -> String { unary8 ("SWAP", dst) }
 
