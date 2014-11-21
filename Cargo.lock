@@ -2,11 +2,11 @@
 name = "rustboy"
 version = "0.0.1"
 dependencies = [
- "sdl2 0.0.1-alpha.1 (git+https://github.com/AngryLawyer/rust-sdl2.git)",
+ "sdl2 0.0.1-alpha.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "sdl2"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/AngryLawyer/rust-sdl2.git#1553901acb9593badde4b7446afc6df1c5696404"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 

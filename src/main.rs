@@ -297,7 +297,7 @@ fn main() {
     loop {
       match sdl2::event::poll_event() {
         sdl2::event::Event::Quit(_) => { state = State::Done; break }
-        sdl2::event::Event::KeyDown(_, _, key, _, _) => {
+        sdl2::event::Event::KeyDown(_, _, key, _, _, _) => {
           match keymap(key) {
             Some(button) => cpu.mem.joypad.set_button(button, true),
             None => {
@@ -308,7 +308,7 @@ fn main() {
             }
           }
         },
-        sdl2::event::Event::KeyUp(_, _, key, _, _) => {
+        sdl2::event::Event::KeyUp(_, _, key, _, _, _) => {
           match keymap(key) {
             Some(button) => cpu.mem.joypad.set_button(button, false),
             None => (),
