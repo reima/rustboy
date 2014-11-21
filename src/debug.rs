@@ -102,11 +102,11 @@ fn dump_tiles<M: Mem>(m: &mut M) -> IoResult<()> {
     let col = num % 16;
     let pixels = data.slice_from_mut((row * 16 * 8 + col)*8);
     for row in range(0u, 8u) {
-      expand_tile_row(tile, 0xe4, row, pixels.slice_from_mut(16*8*row));
+      expand_tile_row(&mut tile, 0xe4, row, pixels.slice_from_mut(16*8*row));
     }
   }
 
-  write_pgm(&Path::new("tiles.pgm"), 16*8, 24*8, data)
+  write_pgm(&Path::new("tiles.pgm"), 16*8, 24*8, &data)
 }
 
 fn dump_bg<M: Mem>(m: &mut M) -> IoResult<()> {
@@ -155,7 +155,7 @@ fn dump_bg<M: Mem>(m: &mut M) -> IoResult<()> {
     }
   }
 
-  write_pgm(&Path::new("bg.pgm"), 32*8, 32*8, data)
+  write_pgm(&Path::new("bg.pgm"), 32*8, 32*8, &data)
 }
 
 fn parse_addr(s: &str) -> Option<u16> {

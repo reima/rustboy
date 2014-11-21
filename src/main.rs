@@ -251,7 +251,7 @@ fn main() {
             }
           },
           video::Signal::VBlank => {
-            video_out.blit_and_present(cpu.mem.video.screen);
+            video_out.blit_and_present(&cpu.mem.video.screen);
             cpu.mem.intr.irq(interrupt::IRQ_VBLANK);
             new_frame = true;
           }

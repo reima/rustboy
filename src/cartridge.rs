@@ -29,7 +29,7 @@ impl Cartridge {
 
     let mut header = [0, ..80];
     try!(file.seek(HEADER_OFFSET, SeekSet));
-    try!(file.read(header));
+    try!(file.read(&mut header));
 
     let title = str::from_utf8(header.slice(0x34, 0x43)).unwrap().to_string();
 
