@@ -39,7 +39,7 @@ impl<'a> mem::Mem for SerialIO<'a> {
           // Start transfer
           // TODO: This should be done with 8192 bits per second
           match self.writer {
-            Some(ref mut writer) => { let r = writer.write_u8(self.data); },
+            Some(ref mut writer) => { let _ = writer.write_u8(self.data); },
             None => (),
           }
           // No external GameBoy present, receive dummy value

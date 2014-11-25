@@ -7,8 +7,8 @@ use mem;
 pub const IRQ_VBLANK: u8 = 0b00001;
 pub const IRQ_LCD:    u8 = 0b00010;
 pub const IRQ_TIMER:  u8 = 0b00100;
-pub const IRQ_SERIAL: u8 = 0b01000;
-pub const IRQ_JOYPAD: u8 = 0b10000;
+//pub const IRQ_SERIAL: u8 = 0b01000;
+//pub const IRQ_JOYPAD: u8 = 0b10000;
 
 const IRQ_MASK: u8 = 0b11111;
 

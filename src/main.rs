@@ -27,12 +27,12 @@ mod video;
 
 struct Dummy;
 impl Mem for Dummy {
-  fn loadb(&mut self, addr: u16) -> u8 {
+  fn loadb(&mut self, _ /* addr */: u16) -> u8 {
     //debug!("load in unmapped memory at 0x{:04X}", addr);
     0xff
   }
 
-  fn storeb(&mut self, addr: u16, val: u8) {
+  fn storeb(&mut self, _ /* addr */: u16, _ /* val */: u8) {
     //debug!("store in unmapped memory at 0x{:04X}", addr);
   }
 }
@@ -120,8 +120,8 @@ impl VideoOut {
   }
 
   fn blit_and_present(&self, pixels: &[u8]) {
-    self.texture.update(None, pixels, (video::SCREEN_WIDTH * 4) as int);
-    self.renderer.copy(&*self.texture, None, None);
+    let _ = self.texture.update(None, pixels, (video::SCREEN_WIDTH * 4) as int);
+    let _ = self.renderer.copy(&*self.texture, None, None);
     self.renderer.present();
   }
 

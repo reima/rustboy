@@ -44,11 +44,11 @@ impl Joypad {
     self.update_input();
   }
 
-  pub fn reset(&mut self) {
-    for p in self.pressed.iter_mut() {
-      *p = false;
-    }
-  }
+  // pub fn reset(&mut self) {
+  //   for p in self.pressed.iter_mut() {
+  //     *p = false;
+  //   }
+  // }
 
   fn update_input(&mut self) {
     // All bits are low-active, i.e. 0 means selected/pressed

@@ -32,7 +32,7 @@ const FLAG_BG_MAP: u8        = 0b0000_1000;
 const FLAG_BG_WIN_TILES: u8  = 0b0001_0000;
 const FLAG_ENABLE_WIN: u8    = 0b0010_0000;
 const FLAG_WIN_MAP: u8       = 0b0100_0000;
-const FLAG_ENABLE: u8        = 0b1000_0000;
+//const FLAG_ENABLE: u8        = 0b1000_0000;
 
 const TILES_BASE0: uint = 0x800;
 const TILES_BIAS0: u8 = 128u8;
@@ -52,7 +52,7 @@ const BG_HEIGHT_TILES: uint = 32;
 const OBJ_FLAG_PALETTE:  u8 = 0b0001_0000;
 const OBJ_FLAG_FLIP_X:   u8 = 0b0010_0000;
 const OBJ_FLAG_FLIP_Y:   u8 = 0b0100_0000;
-const OBJ_FLAG_PRIORITY: u8 = 0b1000_0000;
+//const OBJ_FLAG_PRIORITY: u8 = 0b1000_0000;
 
 pub const SCREEN_WIDTH: uint = 160;
 pub const SCREEN_HEIGHT: uint = 144;  // After this many rows, V-Blank starts
@@ -272,7 +272,7 @@ impl Video {
     static OFFSET_X: uint = 8;
     static OFFSET_Y: uint = 16;
 
-    static MAX_OBJS_PER_ROW: uint = 10;
+    //static MAX_OBJS_PER_ROW: uint = 10;
 
     let obj_height =
       if (self.flags & FLAG_OBJ_SIZE) != 0 {

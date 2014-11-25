@@ -688,7 +688,7 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
     4
   }
 
-  fn stop(&mut self, val: u8) -> u8 {
+  fn stop(&mut self, _ /* val */: u8) -> u8 {
     //panic!("instruction not implemented: stop")
     4
   }
