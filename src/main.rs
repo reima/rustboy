@@ -108,7 +108,7 @@ impl VideoOut {
       Err(err) => panic!("Failed to create renderer: {}", err)
     };
 
-    let texture = match renderer.create_texture(sdl2::pixels::ARGB8888,
+    let texture = match renderer.create_texture(sdl2::pixels::PixelFormatFlag::ARGB8888,
                                                 sdl2::render::TextureAccess::Streaming,
                                                 video::SCREEN_WIDTH as int,
                                                 video::SCREEN_HEIGHT as int) {
