@@ -48,6 +48,7 @@ impl Regs {
 //
 
 #[deriving(Show)]
+#[deriving(Copy)]
 pub enum Reg8 {
   A, B, C, D, E, H, L
 }
@@ -79,6 +80,7 @@ impl<M: mem::Mem> Reg8 {
 }
 
 #[deriving(Show)]
+#[deriving(Copy)]
 pub enum Reg16 {
   AF, BC, DE, HL, SP, PC
 }
@@ -107,6 +109,7 @@ impl<M: mem::Mem> Reg16 {
   }
 }
 
+#[deriving(Copy)]
 pub enum Addr8 {
   Imm(u8),
   Ind(u8),
@@ -183,6 +186,7 @@ impl Addr8 {
   }
 }
 
+#[deriving(Copy)]
 pub enum Addr16 {
   Imm(u16),
   Ind(u16),
