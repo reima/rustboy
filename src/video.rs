@@ -82,11 +82,11 @@ pub struct Video {
   obp1: u8,  // OBP1 register
 
   // Memory
-  vram: [u8, ..0x2000],
-  oam: [u8, ..0xa0],
+  vram: [u8; 0x2000],
+  oam: [u8; 0xa0],
 
   // Screen buffer
-  pub screen: [u8, ..SCREEN_WIDTH*SCREEN_HEIGHT*4],
+  pub screen: [u8; SCREEN_WIDTH*SCREEN_HEIGHT*4],
 }
 
 
@@ -115,9 +115,9 @@ impl Video {
       bgp: 0,
       obp0: 0,
       obp1: 0,
-      vram: [0u8, ..0x2000],
-      oam: [0u8, ..0xa0],
-      screen: [0u8, ..SCREEN_WIDTH*SCREEN_HEIGHT*4], // BGRA
+      vram: [0u8; 0x2000],
+      oam: [0u8; 0xa0],
+      screen: [0u8; SCREEN_WIDTH*SCREEN_HEIGHT*4], // BGRA
     }
   }
 

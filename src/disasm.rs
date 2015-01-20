@@ -10,7 +10,7 @@ fn addr16_to_str(addr: Addr16) -> String {
   match addr {
     Addr16::Imm(val)    => format!("${:04X}", val),
     Addr16::Ind(addr)   => format!("(${:04X})", addr),
-    Addr16::Reg16Dir(r) => format!("{}", r),
+    Addr16::Reg16Dir(r) => format!("{:?}", r),
   }
 }
 
@@ -19,11 +19,11 @@ fn addr8_to_str(addr: Addr8) -> String {
     Addr8::Imm(val)       => format!("${:02X}", val),
     Addr8::Ind(offset)    => format!("($FF00+${:02X})", offset),
     Addr8::Imm16Ind(addr) => format!("(${:04X})", addr),
-    Addr8::Reg8Dir(r)     => format!("{}", r),
-    Addr8::Reg8Ind(r)     => format!("($FF00+{})", r),
-    Addr8::Reg16Ind(r)    => format!("({})", r),
-    Addr8::Reg16IndInc(r) => format!("({}+)", r),
-    Addr8::Reg16IndDec(r) => format!("({}-)", r),
+    Addr8::Reg8Dir(r)     => format!("{:?}", r),
+    Addr8::Reg8Ind(r)     => format!("($FF00+{:?})", r),
+    Addr8::Reg16Ind(r)    => format!("({:?})", r),
+    Addr8::Reg16IndInc(r) => format!("({:?}+)", r),
+    Addr8::Reg16IndDec(r) => format!("({:?}-)", r),
   }
 }
 

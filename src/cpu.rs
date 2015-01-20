@@ -47,14 +47,14 @@ impl Regs {
 // Instruction decoding
 //
 
-#[deriving(Show)]
-#[deriving(Copy)]
+#[derive(Show)]
+#[derive(Copy)]
 pub enum Reg8 {
   A, B, C, D, E, H, L
 }
 
-impl<M: mem::Mem> Reg8 {
-  fn load(&self, cpu: &Cpu<M>) -> u8 {
+impl Reg8 {
+  fn load<M: mem::Mem>(&self, cpu: &Cpu<M>) -> u8 {
     match *self {
       Reg8::A => cpu.regs.a,
       Reg8::B => cpu.regs.b,
@@ -66,7 +66,7 @@ impl<M: mem::Mem> Reg8 {
     }
   }
 
-  fn store(&self, cpu: &mut Cpu<M>, val: u8) {
+  fn store<M: mem::Mem>(&self, cpu: &mut Cpu<M>, val: u8) {
     match *self {
       Reg8::A => cpu.regs.a = val,
       Reg8::B => cpu.regs.b = val,
@@ -79,25 +79,25 @@ impl<M: mem::Mem> Reg8 {
   }
 }
 
-#[deriving(Show)]
-#[deriving(Copy)]
+#[derive(Show)]
+#[derive(Copy)]
 pub enum Reg16 {
   AF, BC, DE, HL, SP, PC
 }
 
-impl<M: mem::Mem> Reg16 {
-  fn load(&self, cpu: &Cpu<M>) -> u16 {
+impl Reg16 {
+  fn load<M: mem::Mem>(&self, cpu: &Cpu<M>) -> u16 {
     match *self {
-      Reg16::AF => (cpu.regs.a as u16 << 8) | cpu.regs.f as u16,
-      Reg16::BC => (cpu.regs.b as u16 << 8) | cpu.regs.c as u16,
-      Reg16::DE => (cpu.regs.d as u16 << 8) | cpu.regs.e as u16,
-      Reg16::HL => (cpu.regs.h as u16 << 8) | cpu.regs.l as u16,
+      Reg16::AF => ((cpu.regs.a as u16) << 8) | cpu.regs.f as u16,
+      Reg16::BC => ((cpu.regs.b as u16) << 8) | cpu.regs.c as u16,
+      Reg16::DE => ((cpu.regs.d as u16) << 8) | cpu.regs.e as u16,
+      Reg16::HL => ((cpu.regs.h as u16) << 8) | cpu.regs.l as u16,
       Reg16::SP => cpu.regs.sp,
       Reg16::PC => cpu.regs.pc,
     }
   }
 
-  fn store(&self, cpu: &mut Cpu<M>, val: u16) {
+  fn store<M: mem::Mem>(&self, cpu: &mut Cpu<M>, val: u16) {
     match *self {
       Reg16::AF => { cpu.regs.a = (val >> 8) as u8; cpu.regs.f = val as u8 & 0xf0 }
       Reg16::BC => { cpu.regs.b = (val >> 8) as u8; cpu.regs.c = val as u8 }
@@ -109,7 +109,7 @@ impl<M: mem::Mem> Reg16 {
   }
 }
 
-#[deriving(Copy)]
+#[derive(Copy)]
 pub enum Addr8 {
   Imm(u8),
   Ind(u8),
@@ -186,7 +186,7 @@ impl Addr8 {
   }
 }
 
-#[deriving(Copy)]
+#[derive(Copy)]
 pub enum Addr16 {
   Imm(u16),
   Ind(u16),
@@ -341,10 +341,10 @@ fn decode_addr(code: u8) -> Addr8 {
 
 // Source: http://www.pastraiser.com/cpu/gameboy/gameboy_opcodes.html
 pub fn decode<R, D: Decoder<R>>(d: &mut D) -> R {
-  let fetchw = |d: &mut D| -> u16 {
+  let fetchw = |&: d: &mut D| -> u16 {
     let lo = d.fetch();
     let hi = d.fetch();
-    (hi as u16 << 8) | lo as u16
+    ((hi as u16) << 8) | lo as u16
   };
 
   let opcode = d.fetch();

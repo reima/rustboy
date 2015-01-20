@@ -27,7 +27,7 @@ impl Cartridge {
   fn from_file(file: &mut File) -> IoResult<Cartridge> {
     use std::str;
 
-    let mut header = [0, ..80];
+    let mut header = [0; 80];
     try!(file.seek(HEADER_OFFSET, SeekSet));
     try!(file.read(&mut header));
 

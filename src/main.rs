@@ -1,6 +1,4 @@
-#![feature(phase)]
-
-#[phase(plugin, link)]
+#[macro_use]
 extern crate log;
 
 extern crate sdl2;
@@ -116,7 +114,7 @@ impl VideoOut {
       Err(err) => panic!("Failed to create texture: {}", err),
     };
 
-    VideoOut { renderer: box renderer, texture: box texture }
+    VideoOut { renderer: Box::new(renderer), texture: Box::new(texture) }
   }
 
   fn blit_and_present(&self, pixels: &[u8]) {
@@ -149,7 +147,7 @@ fn keymap(code: sdl2::keycode::KeyCode) -> Option<joypad::Button> {
 }
 
 
-#[deriving(PartialEq)]
+#[derive(PartialEq)]
 enum State {
   Paused,
   Running,
@@ -174,7 +172,7 @@ fn main() {
     };
 
   let mut cart = match cartridge::Cartridge::from_path(&Path::new(path.as_slice())) {
-    Ok(cart) => box cart,
+    Ok(cart) => Box::new(cart),
     Err(e)   => panic!("I/O error: {}", e),
   };
 
@@ -198,7 +196,7 @@ fn main() {
     intr: interrupt::InterruptCtrl::new(),
     sound: sound::Sound,
     video: video::Video::new(),
-    serial: serial::SerialIO::new(Some(box stdio::stdout() as Box<std::io::Writer>)),
+    serial: serial::SerialIO::new(Some(Box::new(stdio::stdout()))),
     joypad: joypad::Joypad::new(),
     dummy: Dummy,
   };
@@ -244,7 +242,7 @@ fn main() {
         match *signal {
           video::Signal::DMA(base) => {
             // Do DMA transfer instantaneously
-            let base_addr = base as u16 << 8;
+            let base_addr = (base as u16) << 8;
             for offset in range(0x00u16, 0xa0u16) {
               let val = cpu.mem.loadb(base_addr + offset);
               cpu.mem.storeb(0xfe00 + offset, val);

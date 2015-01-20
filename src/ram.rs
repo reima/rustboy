@@ -5,12 +5,12 @@ use mem;
 //
 
 pub struct WorkRam {
-  data: [u8, ..0x207f] // 0x2000 WRAM + 0x7f HRAM
+  data: [u8; 0x207f] // 0x2000 WRAM + 0x7f HRAM
 }
 
 impl WorkRam {
   pub fn new() -> WorkRam {
-    WorkRam { data: [0u8, ..0x207f] }
+    WorkRam { data: [0u8; 0x207f] }
   }
 }
 

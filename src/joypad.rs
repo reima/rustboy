@@ -31,12 +31,12 @@ pub enum Button {
 
 pub struct Joypad {
   p1: u8,       // P1 register
-  pressed: [bool, ..8],  // Button pressed state
+  pressed: [bool; 8],  // Button pressed state
 }
 
 impl Joypad {
   pub fn new() -> Joypad {
-    Joypad { p1: 0xcf, pressed: [false, ..8] }
+    Joypad { p1: 0xcf, pressed: [false; 8] }
   }
 
   pub fn set_button(&mut self, button: Button, pressed: bool) {

@@ -3,7 +3,7 @@ pub trait Mem {
   fn storeb(&mut self, addr: u16, val: u8);
 
   fn loadw(&mut self, addr: u16) -> u16 {
-    self.loadb(addr) as u16 | (self.loadb(addr + 1) as u16 << 8)
+    self.loadb(addr) as u16 | ((self.loadb(addr + 1) as u16) << 8)
   }
 
   fn storew(&mut self, addr: u16, val: u16) {

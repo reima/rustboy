@@ -91,10 +91,10 @@ fn write_pgm(path: &Path, width: uint, height: uint, data: &[u8]) -> IoResult<()
 }
 
 fn dump_tiles<M: Mem>(m: &mut M) -> IoResult<()> {
-  let mut data = [0u8, ..16*24*8*8];
+  let mut data = [0u8; 16*24*8*8];
 
   for num in range(0u, 384u) {
-    let mut tile = [0u8, ..16];
+    let mut tile = [0u8; 16];
     for offset in range(0u, 16u) {
       tile[offset] = m.loadb(0x8000u16 + num as u16 * 16u16 + offset as u16);
     }
@@ -124,13 +124,13 @@ fn dump_bg<M: Mem>(m: &mut M) -> IoResult<()> {
   }
 
   // Load tiles
-  let mut tiles = [0xffu8, ..256*16];
+  let mut tiles = [0xffu8; 256*16];
   for offset in range(0u, 256*16) {
     tiles[offset] = m.loadb((tile_base + offset) as u16);
   }
 
   // Load map
-  let mut map = [0u8, ..32*32];
+  let mut map = [0u8; 32*32];
   for offset in range(0u, 32u*32u) {
     map[offset] = m.loadb((map_base + offset) as u16);
   }
@@ -138,7 +138,7 @@ fn dump_bg<M: Mem>(m: &mut M) -> IoResult<()> {
   // Load palette
   let pal = m.loadb(0xff47);
 
-  let mut data = [0u8, ..32*32*8*8];
+  let mut data = [0u8; 32*32*8*8];
   let row_pitch = 32*8;
 
   for row in range(0u, 32u) {
