@@ -1,3 +1,5 @@
+#![feature(int_uint)]
+
 #[macro_use]
 extern crate log;
 
@@ -243,7 +245,7 @@ fn main() {
           video::Signal::DMA(base) => {
             // Do DMA transfer instantaneously
             let base_addr = (base as u16) << 8;
-            for offset in range(0x00u16, 0xa0u16) {
+            for offset in (0x00u16..0xa0u16) {
               let val = cpu.mem.loadb(base_addr + offset);
               cpu.mem.storeb(0xfe00 + offset, val);
             }

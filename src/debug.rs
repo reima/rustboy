@@ -19,12 +19,12 @@ fn disasm<M: Mem>(mem: &mut M, addr: &mut u16) -> String {
 fn disassemble<M: Mem>(mem: &mut M, addr: u16) {
   let mut pc = addr;
 
-  for _ in range(0u, 5u) {
+  for _ in (0u..5u) {
     let start_addr = pc;
     let instr = disasm(mem, &mut pc);
     let end_addr = pc;
     print!("${:04X}", start_addr);
-    for a in range(start_addr, end_addr) {
+    for a in (start_addr..end_addr) {
       print!(" {:02X}", mem.loadb(a));
     }
     println!("\t{}", instr);
@@ -37,9 +37,9 @@ fn print_mem<M: Mem>(mem: &mut M, addr: u16) {
   let mut base = addr & 0xfff0;
   let mut start_offset = addr & 0xf;
 
-  for _ in range(0u, 4u) {
+  for _ in (0u..4u) {
     print!("${:04X}\t", base);
-    for offset in range(0u16, 16u16) {
+    for offset in (0u16..16u16) {
       if offset == 8 {
         print(" ");
       }
@@ -71,7 +71,7 @@ fn print_regs<M>(cpu: &cpu::Cpu<M>) {
 }
 
 fn expand_tile_row(tile: &[u8], palette: u8, row: uint, pixels: &mut [u8]) {
-  for col in range(0u, 8u) {
+  for col in (0u..8u) {
     let low_bit  = (tile[2*row]   >> (7 - col)) & 1;
     let high_bit = (tile[2*row+1] >> (7 - col)) & 1;
     let value = (high_bit << 1) | low_bit;
@@ -93,16 +93,16 @@ fn write_pgm(path: &Path, width: uint, height: uint, data: &[u8]) -> IoResult<()
 fn dump_tiles<M: Mem>(m: &mut M) -> IoResult<()> {
   let mut data = [0u8; 16*24*8*8];
 
-  for num in range(0u, 384u) {
+  for num in (0u..384u) {
     let mut tile = [0u8; 16];
-    for offset in range(0u, 16u) {
+    for offset in (0u..16u) {
       tile[offset] = m.loadb(0x8000u16 + num as u16 * 16u16 + offset as u16);
     }
     let row = num / 16;
     let col = num % 16;
-    let pixels = data.slice_from_mut((row * 16 * 8 + col)*8);
-    for row in range(0u, 8u) {
-      expand_tile_row(&mut tile, 0xe4, row, pixels.slice_from_mut(16*8*row));
+    let pixels = &mut data[(row * 16 * 8 + col)*8..];
+    for row in (0u..8u) {
+      expand_tile_row(&mut tile, 0xe4, row, &mut pixels[16*8*row..]);
     }
   }
 
@@ -125,13 +125,13 @@ fn dump_bg<M: Mem>(m: &mut M) -> IoResult<()> {
 
   // Load tiles
   let mut tiles = [0xffu8; 256*16];
-  for offset in range(0u, 256*16) {
+  for offset in (0u..256*16) {
     tiles[offset] = m.loadb((tile_base + offset) as u16);
   }
 
   // Load map
   let mut map = [0u8; 32*32];
-  for offset in range(0u, 32u*32u) {
+  for offset in (0u..32u*32u) {
     map[offset] = m.loadb((map_base + offset) as u16);
   }
 
@@ -141,16 +141,16 @@ fn dump_bg<M: Mem>(m: &mut M) -> IoResult<()> {
   let mut data = [0u8; 32*32*8*8];
   let row_pitch = 32*8;
 
-  for row in range(0u, 32u) {
-    for col in range(0u, 32u) {
+  for row in (0u..32u) {
+    for col in (0u..32u) {
       let tile_num = (map[row*32 + col] + tile_bias) as uint;
-      let tile = tiles.slice_from(tile_num * 16);
-      let pixels = data.slice_from_mut((row*row_pitch + col)*8);
-      for tile_row in range(0u, 8u) {
+      let tile = &tiles[tile_num * 16..];
+      let pixels = &mut data[(row*row_pitch + col)*8..];
+      for tile_row in (0u..8u) {
         expand_tile_row(tile,
                         pal,
                         tile_row,
-                        pixels.slice_from_mut(tile_row*row_pitch));
+                        &mut pixels[tile_row*row_pitch..]);
       }
     }
   }
@@ -162,7 +162,7 @@ fn parse_addr(s: &str) -> Option<u16> {
   let mut slice = s;
   let mut radix = 10;
   if slice.starts_with("$") {
-    slice = slice.slice_from(1);
+    slice = &slice[1..];
     radix = 16;
   }
   from_str_radix::<u16>(slice, radix)
@@ -252,7 +252,7 @@ impl Debugger {
           let mut add = true;
           let mut arg = words[1];
           if arg.starts_with("-") {
-            arg = arg.slice_from(1);
+            arg = &arg[1..];
             add = false;
           }
           match parse_addr(arg) {

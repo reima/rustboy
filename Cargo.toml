@@ -6,3 +6,4 @@ authors = ["Matthias Reitinger <reima@edenprime.de>"]
 
 [dependencies]
 sdl2 = "0.0"
+log = "0.1"

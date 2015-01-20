@@ -239,7 +239,7 @@ impl Video {
     let bg_map_y = (screen_y + self.scy as uint) % (BG_HEIGHT_TILES * TILE_HEIGHT);
     let win_map_y = screen_y - self.wy_saved as uint;
 
-    for screen_x in range(0u, SCREEN_WIDTH) {
+    for screen_x in (0u..SCREEN_WIDTH) {
       let mut map_base;
       let mut map_x;
       let mut map_y;
@@ -254,11 +254,11 @@ impl Video {
         map_y = bg_map_y;
       }
 
-      let pixel = self.screen.slice_from_mut((screen_y * SCREEN_WIDTH + screen_x) * 4);
+      let pixel = &mut self.screen[((screen_y * SCREEN_WIDTH + screen_x) * 4)..];
       let map_tile_x = map_x / TILE_WIDTH;
       let map_tile_y = map_y / TILE_HEIGHT;
       let tile_num = (self.vram[map_base + map_tile_y*BG_WIDTH_TILES + map_tile_x] + tiles_bias) as uint;
-      let tile = self.vram.slice_from(tiles_base + tile_num*TILE_BYTES);
+      let tile = &self.vram[(tiles_base + tile_num*TILE_BYTES)..];
 
       let tile_x = map_x % TILE_WIDTH;
       let tile_y = map_y % TILE_HEIGHT;
@@ -283,7 +283,7 @@ impl Video {
 
     // Find objs in this row
     let mut objs = vec!();
-    for obj_num in range(0u, 40u) {
+    for obj_num in (0u..40u) {
       let obj_y = self.oam[obj_num * 4] as uint;
       if obj_y <= screen_y + OFFSET_Y && screen_y + OFFSET_Y < obj_y + obj_height {
         objs.push(obj_num);
@@ -327,12 +327,12 @@ impl Video {
         tile_y = TILE_HEIGHT - 1 - tile_y;
       }
 
-      let tile = self.vram.slice_from(TILES_BASE1 + obj_tile*TILE_BYTES);
+      let tile = &self.vram[(TILES_BASE1 + obj_tile*TILE_BYTES)..];
 
-      for mut tile_x in range(0, TILE_WIDTH) {
+      for mut tile_x in (0..TILE_WIDTH) {
         let screen_x = obj_x + tile_x;
         if OFFSET_X <= screen_x && screen_x < SCREEN_WIDTH + OFFSET_X {
-          let pixel = self.screen.slice_from_mut((screen_y * SCREEN_WIDTH + screen_x - OFFSET_X) * 4);
+          let pixel = &mut self.screen[((screen_y * SCREEN_WIDTH + screen_x - OFFSET_X) * 4)..];
           if (obj_flags & OBJ_FLAG_FLIP_X) != 0 {
             tile_x = TILE_WIDTH - 1 - tile_x;
           }

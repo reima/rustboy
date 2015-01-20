@@ -31,7 +31,7 @@ impl Cartridge {
     try!(file.seek(HEADER_OFFSET, SeekSet));
     try!(file.read(&mut header));
 
-    let title = str::from_utf8(header.slice(0x34, 0x43)).unwrap().to_string();
+    let title = str::from_utf8(&header[0x34..0x43]).unwrap().to_string();
 
     let cartridge_type = header[0x47];
     let mbc =
@@ -54,7 +54,7 @@ impl Cartridge {
 
     try!(file.seek(0, SeekSet));
 
-    for _ in range(0, rom_bank_count) {
+    for _ in (0..rom_bank_count) {
       let mut bank = Vec::with_capacity(ROM_BANK_SIZE);
       try!(file.push(ROM_BANK_SIZE, &mut bank));
       rom_banks.push(bank);
