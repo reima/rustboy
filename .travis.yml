@@ -3,7 +3,8 @@ env:
   global:
     - LD_LIBRARY_PATH: /usr/local/lib
 install:
+  - sudo apt-add-repository ppa:zoogie/sdl2-snapshots -y
   - sudo apt-get update -q
-  - sudo apt-get install libsdl2-dev
+  - sudo apt-get install libsdl2-dev -q
 script:
   - cargo build -v
