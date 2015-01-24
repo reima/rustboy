@@ -2,7 +2,7 @@
 name = "rustboy"
 version = "0.0.1"
 dependencies = [
- "log 0.1.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "sdl2 0.0.18 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -13,7 +13,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "log"
-version = "0.1.9"
+version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "regex 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -21,7 +21,7 @@ dependencies = [
 
 [[package]]
 name = "pkg-config"
-version = "0.1.5"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
@@ -43,6 +43,6 @@ name = "sdl2-sys"
 version = "0.0.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "pkg-config 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pkg-config 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
