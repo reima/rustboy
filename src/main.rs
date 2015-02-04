@@ -1,4 +1,8 @@
+#![feature(core)]
 #![feature(int_uint)]
+#![feature(io)]
+#![feature(os)]
+#![feature(path)]
 
 #[macro_use]
 extern crate log;
@@ -267,7 +271,7 @@ fn main() {
         let now = sdl2::timer::get_performance_counter();
         let frame_time = now - last_frame_start_count;
         if frame_time < counts_per_frame {
-          let delay_msec = (1_000 * (counts_per_frame - frame_time) / counts_per_sec);
+          let delay_msec = 1_000 * (counts_per_frame - frame_time) / counts_per_sec;
           sdl2::timer::delay(delay_msec as u32);
         }
         // TODO: What should we do when we take longer than counts_per_frame?

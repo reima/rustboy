@@ -85,7 +85,7 @@ fn write_pgm(path: &Path, width: uint, height: uint, data: &[u8]) -> IoResult<()
   try!(output.write_line("P5"));
   try!(output.write_line(format!("{} {}", width, height).as_slice()));
   try!(output.write_line("3"));
-  try!(output.write(data));
+  try!(output.write_all(data));
 
   Ok(())
 }

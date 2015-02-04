@@ -47,8 +47,7 @@ impl Regs {
 // Instruction decoding
 //
 
-#[derive(Show)]
-#[derive(Copy)]
+#[derive(Debug, Copy)]
 pub enum Reg8 {
   A, B, C, D, E, H, L
 }
@@ -79,8 +78,7 @@ impl Reg8 {
   }
 }
 
-#[derive(Show)]
-#[derive(Copy)]
+#[derive(Debug, Copy)]
 pub enum Reg16 {
   AF, BC, DE, HL, SP, PC
 }
