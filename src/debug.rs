@@ -1,8 +1,8 @@
 use mem::Mem;
 use cpu;
 use disasm;
-use std::io::stdio::{print, println};
-use std::io::{stdio, File, BufferedReader, IoResult};
+use std::old_io::stdio::{print, println};
+use std::old_io::{stdio, File, BufferedReader, IoResult};
 use std::num::from_str_radix;
 
 //
@@ -165,7 +165,7 @@ fn parse_addr(s: &str) -> Option<u16> {
     slice = &slice[1..];
     radix = 16;
   }
-  from_str_radix::<u16>(slice, radix)
+  from_str_radix::<u16>(slice, radix).ok()
 }
 
 pub struct Debugger {

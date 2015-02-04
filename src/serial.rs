@@ -1,5 +1,5 @@
 use mem;
-use std::io::Writer;
+use std::old_io::Writer;
 
 //
 // Serial I/O

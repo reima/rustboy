@@ -1,6 +1,6 @@
 use mem::Mem;
 use std::cmp;
-use std::io::{File, IoResult, SeekSet};
+use std::old_io::{File, IoResult, SeekSet};
 
 static HEADER_OFFSET: i64 = 0x100;
 static ROM_BANK_SIZE: uint = 0x4000;

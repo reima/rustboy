@@ -6,7 +6,7 @@ extern crate log;
 extern crate sdl2;
 
 use mem::Mem;
-use std::io::stdio;
+use std::old_io::stdio;
 
 mod cartridge;
 mod cpu;
@@ -87,42 +87,44 @@ impl<'a> Mem for MemMap<'a> {
 // Video Output
 //
 
-struct VideoOut {
-  renderer: Box<sdl2::render::Renderer>,
-  texture: Box<sdl2::render::Texture>,
+struct VideoOut<'renderer> {
+  renderer: &'renderer sdl2::render::Renderer,
+  texture: sdl2::render::Texture<'renderer>,
 }
 
-impl VideoOut {
-  fn new(scale: int) -> VideoOut {
+impl<'renderer> VideoOut<'renderer> {
+  fn init_renderer(scale: i32) -> sdl2::render::Renderer {
     use sdl2::render::Renderer;
 
     sdl2::init(sdl2::INIT_VIDEO);
 
-    let window_width = video::SCREEN_WIDTH as int * scale;
-    let window_height = video::SCREEN_HEIGHT as int * scale;
+    let window_width = video::SCREEN_WIDTH as i32 * scale;
+    let window_height = video::SCREEN_HEIGHT as i32 * scale;
 
-    let renderer = match Renderer::new_with_window(window_width,
-                                                   window_height,
-                                                   sdl2::video::RESIZABLE) {
+    match Renderer::new_with_window(window_width,
+                                    window_height,
+                                    sdl2::video::RESIZABLE) {
       Ok(renderer) => renderer,
       Err(err) => panic!("Failed to create renderer: {}", err)
-    };
+    }
+  }
 
-    let texture = match renderer.create_texture(sdl2::pixels::PixelFormatFlag::ARGB8888,
-                                                sdl2::render::TextureAccess::Streaming,
-                                                video::SCREEN_WIDTH as int,
-                                                video::SCREEN_HEIGHT as int) {
+  fn new(renderer: &'renderer sdl2::render::Renderer) -> VideoOut<'renderer> {
+    let texture = match renderer.create_texture_streaming(
+        sdl2::pixels::PixelFormatEnum::ARGB8888,
+        (video::SCREEN_WIDTH as i32, video::SCREEN_HEIGHT as i32)) {
       Ok(texture) => texture,
       Err(err) => panic!("Failed to create texture: {}", err),
     };
 
-    VideoOut { renderer: Box::new(renderer), texture: Box::new(texture) }
+    VideoOut { renderer: renderer, texture: texture }
   }
 
-  fn blit_and_present(&self, pixels: &[u8]) {
-    let _ = self.texture.update(None, pixels, (video::SCREEN_WIDTH * 4) as int);
-    let _ = self.renderer.copy(&*self.texture, None, None);
-    self.renderer.present();
+  fn blit_and_present(&mut self, pixels: &[u8]) {
+    let _ = self.texture.update(None, pixels, (video::SCREEN_WIDTH * 4) as i32);
+    let mut drawer = self.renderer.drawer();
+    drawer.copy(&self.texture, None, None);
+    drawer.present();
   }
 
   fn set_title(&self, title: &str) {
@@ -205,7 +207,8 @@ fn main() {
   let mut cpu = cpu::Cpu::new(memmap);
   cpu.regs.pc = 0x100;
 
-  let video_out = VideoOut::new(4);
+  let renderer = VideoOut::init_renderer(4);
+  let mut video_out = VideoOut::new(&renderer);
   video_out.set_title("Rustboy");
 
   let mut state = State::Paused;
@@ -264,8 +267,8 @@ fn main() {
         let now = sdl2::timer::get_performance_counter();
         let frame_time = now - last_frame_start_count;
         if frame_time < counts_per_frame {
-          let delay_msec = (1_000 * (counts_per_frame - frame_time) / counts_per_sec) as uint;
-          sdl2::timer::delay(delay_msec);
+          let delay_msec = (1_000 * (counts_per_frame - frame_time) / counts_per_sec);
+          sdl2::timer::delay(delay_msec as u32);
         }
         // TODO: What should we do when we take longer than counts_per_frame?
         last_frame_start_count = sdl2::timer::get_performance_counter();
@@ -296,8 +299,8 @@ fn main() {
     // Event handling loop
     loop {
       match sdl2::event::poll_event() {
-        sdl2::event::Event::Quit(_) => { state = State::Done; break }
-        sdl2::event::Event::KeyDown(_, _, key, _, _, _) => {
+        sdl2::event::Event::Quit{..} => { state = State::Done; break }
+        sdl2::event::Event::KeyDown{keycode: key, ..} => {
           match keymap(key) {
             Some(button) => cpu.mem.joypad.set_button(button, true),
             None => {
@@ -308,7 +311,7 @@ fn main() {
             }
           }
         },
-        sdl2::event::Event::KeyUp(_, _, key, _, _, _) => {
+        sdl2::event::Event::KeyUp{keycode: key, ..} => {
           match keymap(key) {
             Some(button) => cpu.mem.joypad.set_button(button, false),
             None => (),
