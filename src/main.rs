@@ -100,8 +100,6 @@ impl<'renderer> VideoOut<'renderer> {
   fn init_renderer(scale: i32) -> sdl2::render::Renderer {
     use sdl2::render::Renderer;
 
-    sdl2::init(sdl2::INIT_VIDEO);
-
     let window_width = video::SCREEN_WIDTH as i32 * scale;
     let window_height = video::SCREEN_HEIGHT as i32 * scale;
 
@@ -133,7 +131,7 @@ impl<'renderer> VideoOut<'renderer> {
 
   fn set_title(&self, title: &str) {
     match self.renderer.get_parent() {
-      &sdl2::render::RendererParent::Window(ref window) => window.set_title(title),
+      &sdl2::render::RendererParent::Window(ref window) => { window.set_title(title); }
       _ => (),
     }
   }
@@ -210,6 +208,8 @@ fn main() {
   };
   let mut cpu = cpu::Cpu::new(memmap);
   cpu.regs.pc = 0x100;
+
+  let sdl_context = sdl2::init(sdl2::INIT_VIDEO).unwrap();
 
   let renderer = VideoOut::init_renderer(4);
   let mut video_out = VideoOut::new(&renderer);
@@ -301,10 +301,12 @@ fn main() {
     }
 
     // Event handling loop
-    loop {
-      match sdl2::event::poll_event() {
-        sdl2::event::Event::Quit{..} => { state = State::Done; break }
-        sdl2::event::Event::KeyDown{keycode: key, ..} => {
+    for event in sdl_context.event_pump().poll_iter() {
+      use sdl2::event::Event;
+
+      match event {
+        Event::Quit{..} => { state = State::Done; break }
+        Event::KeyDown{keycode: key, ..} => {
           match keymap(key) {
             Some(button) => cpu.mem.joypad.set_button(button, true),
             None => {
@@ -315,13 +317,12 @@ fn main() {
             }
           }
         },
-        sdl2::event::Event::KeyUp{keycode: key, ..} => {
+        Event::KeyUp{keycode: key, ..} => {
           match keymap(key) {
             Some(button) => cpu.mem.joypad.set_button(button, false),
             None => (),
           }
         }
-        sdl2::event::Event::None => break,
         _ => (),
       }
     }
