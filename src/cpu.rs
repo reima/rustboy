@@ -339,7 +339,7 @@ fn decode_addr(code: u8) -> Addr8 {
 
 // Source: http://www.pastraiser.com/cpu/gameboy/gameboy_opcodes.html
 pub fn decode<R, D: Decoder<R>>(d: &mut D) -> R {
-  let fetchw = |&: d: &mut D| -> u16 {
+  let fetchw = |d: &mut D| -> u16 {
     let lo = d.fetch();
     let hi = d.fetch();
     ((hi as u16) << 8) | lo as u16
