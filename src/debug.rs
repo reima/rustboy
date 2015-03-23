@@ -1,8 +1,8 @@
 use mem::Mem;
 use cpu;
 use disasm;
-use std::old_io::stdio::{print, println};
-use std::old_io::{stdio, File, BufferedReader, IoResult};
+use std::old_io::{stdio, BufferedReader, File, IoResult, Reader, Writer};
+use std::old_path::Path;
 use std::num::from_str_radix;
 
 //
@@ -32,7 +32,7 @@ fn disassemble<M: Mem>(mem: &mut M, addr: u16) {
 }
 
 fn print_mem<M: Mem>(mem: &mut M, addr: u16) {
-  println("\t  0  1  2  3  4  5  6  7   8  9  A  B  C  D  E  F");
+  println!("\t  0  1  2  3  4  5  6  7   8  9  A  B  C  D  E  F");
 
   let mut base = addr & 0xfff0;
   let mut start_offset = addr & 0xf;
@@ -41,15 +41,15 @@ fn print_mem<M: Mem>(mem: &mut M, addr: u16) {
     print!("${:04X}\t", base);
     for offset in (0u16..16u16) {
       if offset == 8 {
-        print(" ");
+        print!(" ");
       }
       if offset >= start_offset {
         print!(" {:02X}", mem.loadb(base + offset));
       } else {
-        print("   ");
+        print!("   ");
       }
     }
-    println("");
+    println!("");
     base += 0x10;
     start_offset = 0;
 
@@ -185,9 +185,9 @@ impl Debugger {
 
   fn show_breakpoints(&self) {
     if self.breakpoints.len() == 0 {
-      println("No breakpoints");
+      println!("No breakpoints");
     } else {
-      println("Breakpoints:");
+      println!("Breakpoints:");
       for bp in self.breakpoints.iter() {
         println!("  ${:04X}", *bp);
       }
@@ -290,10 +290,10 @@ impl Debugger {
   }
 
   pub fn prompt<M: Mem>(&mut self, cpu: &mut cpu::Cpu<M>) -> DebuggerCommand {
-    let mut stdin = BufferedReader::new(stdio::stdin());
+    let mut stdin = stdio::stdin();
 
     loop {
-      print("> ");
+      stdio::print("> ");
       stdio::flush();
       match stdin.read_line() {
         Ok(line) => {
@@ -304,7 +304,7 @@ impl Debugger {
           }
         },
         Err(_) => {
-          println("\nType q to exit");
+          println!("\nType q to exit");
         }
       }
     }

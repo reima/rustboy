@@ -619,23 +619,23 @@ impl<M: mem::Mem> Cpu<M> {
 
   // Addition helper
   fn add_(&mut self, a: u8, b: u8, c: u8) {
-    let result = a as u32 + b as u32 + c as u32;
+    let result = (a as u32).wrapping_add(b as u32).wrapping_add(c as u32);
     self.regs.a = result as u8;
     let zero = self.regs.a == 0;
     self.set_flag(ZERO_FLAG, zero);
     self.set_flag(ADD_SUB_FLAG, false);
-    self.set_flag(HALF_CARRY_FLAG, (((a & 0xf) + (b & 0xf) + c) & 0x10) != 0);
+    self.set_flag(HALF_CARRY_FLAG, ((a & 0xf).wrapping_add(b & 0xf).wrapping_add(c) & 0x10) != 0);
     self.set_flag(CARRY_FLAG, (result & 0x100) != 0);
   }
 
   // Subtraction helper
   fn sub_(&mut self, a: u8, b: u8, c: u8) {
-    let result = a as u32 - b as u32 - c as u32;
+    let result = (a as u32).wrapping_sub(b as u32).wrapping_sub(c as u32);
     self.regs.a = result as u8;
     let zero = self.regs.a == 0;
     self.set_flag(ZERO_FLAG, zero);
     self.set_flag(ADD_SUB_FLAG, true);
-    self.set_flag(HALF_CARRY_FLAG, (((a & 0xf) - (b & 0xf) - c) & 0x10) != 0); // ???
+    self.set_flag(HALF_CARRY_FLAG, ((a & 0xf).wrapping_sub(b & 0xf).wrapping_sub(c) & 0x10) != 0); // ???
     self.set_flag(CARRY_FLAG, (result & 0x100) != 0); // ???
   }
 
@@ -842,7 +842,7 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
 
   fn inc8(&mut self, dst: Addr8) -> u8 {
     let val = dst.load(self);
-    let result = val + 1;
+    let result = val.wrapping_add(1);
     dst.store(self, result);
 
     self.set_flag(ZERO_FLAG, result == 0);
@@ -855,13 +855,13 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
 
   fn inc16(&mut self, dst: Addr16) -> u8 {
     let val = dst.load(self);
-    dst.store(self, val + 1);
+    dst.store(self, val.wrapping_add(1));
 
     8
   }
 
   fn dec8(&mut self, dst: Addr8) -> u8 {
-    let result = dst.load(self) - 1;
+    let result = dst.load(self).wrapping_sub(1);
     dst.store(self, result);
 
     self.set_flag(ZERO_FLAG, result == 0);
@@ -874,7 +874,7 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
 
   fn dec16(&mut self, dst: Addr16) -> u8 {
     let val = dst.load(self);
-    dst.store(self, val - 1);
+    dst.store(self, val.wrapping_sub(1));
 
     8
   }

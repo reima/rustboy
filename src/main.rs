@@ -11,6 +11,7 @@ extern crate sdl2;
 
 use mem::Mem;
 use std::old_io::stdio;
+use std::old_path::Path;
 
 mod cartridge;
 mod cpu;

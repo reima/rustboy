@@ -1,11 +1,12 @@
 use mem::Mem;
 use std::cmp;
-use std::old_io::{File, IoResult, SeekSet};
+use std::old_io::{File, IoResult, Reader, Seek, SeekSet};
+use std::old_path::Path;
 
 static HEADER_OFFSET: i64 = 0x100;
 static ROM_BANK_SIZE: uint = 0x4000;
 
-enum MBC {
+pub enum MBC {
   MBC1
 }
 

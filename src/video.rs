@@ -127,7 +127,7 @@ impl Video {
     let old_ly = self.ly;
     let old_mode = self.mode;
 
-    self.cycles = (self.cycles + cycles as uint) % SCREEN_REFRESH_CYCLES;
+    self.cycles = self.cycles.wrapping_add(cycles as uint) % SCREEN_REFRESH_CYCLES;
     self.ly = (self.cycles / ROW_CYCLES) as u8;
 
     self.mode =
@@ -236,8 +236,8 @@ impl Video {
 
     let draw_win = (self.flags & FLAG_ENABLE_WIN) != 0 && self.wy_saved as uint <= screen_y;
 
-    let bg_map_y = (screen_y + self.scy as uint) % (BG_HEIGHT_TILES * TILE_HEIGHT);
-    let win_map_y = screen_y - self.wy_saved as uint;
+    let bg_map_y = screen_y.wrapping_add(self.scy as uint) % (BG_HEIGHT_TILES * TILE_HEIGHT);
+    let win_map_y = screen_y.wrapping_sub(self.wy_saved as uint);
 
     for screen_x in (0u..SCREEN_WIDTH) {
       let mut map_base;
@@ -257,7 +257,11 @@ impl Video {
       let pixel = &mut self.screen[((screen_y * SCREEN_WIDTH + screen_x) * 4)..];
       let map_tile_x = map_x / TILE_WIDTH;
       let map_tile_y = map_y / TILE_HEIGHT;
-      let tile_num = (self.vram[map_base + map_tile_y*BG_WIDTH_TILES + map_tile_x] + tiles_bias) as uint;
+      let tile_num =
+        self.vram[
+          map_base.wrapping_add(map_tile_y*BG_WIDTH_TILES)
+                  .wrapping_add(map_tile_x)
+        ].wrapping_add(tiles_bias) as uint;
       let tile = &self.vram[(tiles_base + tile_num*TILE_BYTES)..];
 
       let tile_x = map_x % TILE_WIDTH;
@@ -308,7 +312,7 @@ impl Video {
       let obj_x        = self.oam[(*obj) * 4 + 1] as uint;
       let mut obj_tile = self.oam[(*obj) * 4 + 2] as uint;
       let obj_flags    = self.oam[(*obj) * 4 + 3];
-      let mut tile_y = screen_y - obj_y + OFFSET_Y;
+      let mut tile_y = screen_y.wrapping_sub(obj_y).wrapping_add(OFFSET_Y);
       let pal = if (obj_flags & OBJ_FLAG_PALETTE) == 0 { self.obp0 } else { self.obp1 };
 
       if (self.flags & FLAG_OBJ_SIZE) != 0 {
