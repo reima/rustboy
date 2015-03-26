@@ -1,8 +1,9 @@
 #![feature(core)]
 #![feature(int_uint)]
-#![feature(io)]
+#![feature(old_io)]
+#![feature(old_path)]
 #![feature(os)]
-#![feature(path)]
+#![feature(str_words)]
 
 #[macro_use]
 extern crate log;
