@@ -25,10 +25,10 @@ fn internal_addr(addr: u16) -> u16 {
 
 impl mem::Mem for WorkRam {
   fn loadb(&mut self, addr: u16) -> u8 {
-    self.data[internal_addr(addr) as uint]
+    self.data[internal_addr(addr) as usize]
   }
 
   fn storeb(&mut self, addr: u16, val: u8) {
-    self.data[internal_addr(addr) as uint] = val
+    self.data[internal_addr(addr) as usize] = val
   }
 }

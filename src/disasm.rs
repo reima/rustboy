@@ -77,10 +77,10 @@ impl<'a, M: mem::Mem> Decoder<String> for Disasm<'a, M> {
   fn stop(&mut self, val: u8) -> String { format!("STOP {}", val) }
 
   // Jump/call
-  fn jp  (&mut self, cond: Cond, addr: Addr16) -> String { unary16(with_cond("JP", cond).as_slice(), addr) }
+  fn jp  (&mut self, cond: Cond, addr: Addr16) -> String { unary16(with_cond("JP", cond).as_ref(), addr) }
   fn jr  (&mut self, cond: Cond, rel: i8)      -> String { format!("{} {}", with_cond("JR", cond), rel) }
 
-  fn call(&mut self, cond: Cond, addr: Addr16) -> String { unary16(with_cond("CALL", cond).as_slice(), addr) }
+  fn call(&mut self, cond: Cond, addr: Addr16) -> String { unary16(with_cond("CALL", cond).as_ref(), addr) }
   fn rst (&mut self, addr: u8)                 -> String { format!("RST ${:02X}", addr) }
 
   fn ret (&mut self, cond: Cond)               -> String { format!("RET {}", cond_to_str(cond)) }

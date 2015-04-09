@@ -4,18 +4,18 @@ use mem;
 // Video
 //
 
-const MODE0_CYCLES: uint = 204;   // H-Blank
-const MODE1_CYCLES: uint = 4560;  // V-Blank
-const MODE2_CYCLES: uint = 80;    // Transfer to LCD
-const MODE3_CYCLES: uint = 172;   // Transfer to LCD
+const MODE0_CYCLES: usize = 204;   // H-Blank
+const MODE1_CYCLES: usize = 4560;  // V-Blank
+const MODE2_CYCLES: usize = 80;    // Transfer to LCD
+const MODE3_CYCLES: usize = 172;   // Transfer to LCD
 
-const MODE2_START: uint = 0;
-const MODE3_START: uint = MODE2_START + MODE2_CYCLES;
-const MODE0_START: uint = MODE3_START + MODE3_CYCLES;
+const MODE2_START: usize = 0;
+const MODE3_START: usize = MODE2_START + MODE2_CYCLES;
+const MODE0_START: usize = MODE3_START + MODE3_CYCLES;
 
-const ROW_CYCLES: uint = MODE0_CYCLES + MODE2_CYCLES + MODE3_CYCLES;
+const ROW_CYCLES: usize = MODE0_CYCLES + MODE2_CYCLES + MODE3_CYCLES;
 
-pub const SCREEN_REFRESH_CYCLES: uint = SCREEN_HEIGHT * ROW_CYCLES + MODE1_CYCLES;
+pub const SCREEN_REFRESH_CYCLES: usize = SCREEN_HEIGHT * ROW_CYCLES + MODE1_CYCLES;
 
 const STAT_MODE0_IRQ: u8        = 0b0000_1000;
 const STAT_MODE1_IRQ: u8        = 0b0001_0000;
@@ -34,32 +34,32 @@ const FLAG_ENABLE_WIN: u8    = 0b0010_0000;
 const FLAG_WIN_MAP: u8       = 0b0100_0000;
 //const FLAG_ENABLE: u8        = 0b1000_0000;
 
-const TILES_BASE0: uint = 0x800;
+const TILES_BASE0: usize = 0x800;
 const TILES_BIAS0: u8 = 128u8;
-const TILES_BASE1: uint = 0x000;
+const TILES_BASE1: usize = 0x000;
 const TILES_BIAS1: u8 = 0u8;
 
-const BG_WIN_MAP_BASE0: uint = 0x1800;
-const BG_WIN_MAP_BASE1: uint = 0x1c00;
+const BG_WIN_MAP_BASE0: usize = 0x1800;
+const BG_WIN_MAP_BASE1: usize = 0x1c00;
 
-const TILE_WIDTH: uint  = 8;
-const TILE_HEIGHT: uint = 8;
-const TILE_BYTES: uint  = 16;
+const TILE_WIDTH: usize  = 8;
+const TILE_HEIGHT: usize = 8;
+const TILE_BYTES: usize  = 16;
 
-const BG_WIDTH_TILES:  uint = 32;
-const BG_HEIGHT_TILES: uint = 32;
+const BG_WIDTH_TILES:  usize = 32;
+const BG_HEIGHT_TILES: usize = 32;
 
 const OBJ_FLAG_PALETTE:  u8 = 0b0001_0000;
 const OBJ_FLAG_FLIP_X:   u8 = 0b0010_0000;
 const OBJ_FLAG_FLIP_Y:   u8 = 0b0100_0000;
 //const OBJ_FLAG_PRIORITY: u8 = 0b1000_0000;
 
-pub const SCREEN_WIDTH: uint = 160;
-pub const SCREEN_HEIGHT: uint = 144;  // After this many rows, V-Blank starts
+pub const SCREEN_WIDTH: usize = 160;
+pub const SCREEN_HEIGHT: usize = 144;  // After this many rows, V-Blank starts
 
 pub struct Video {
   // Implementation state
-  cycles: uint, // internal cycle count, wraps around at SCREEN_REFRESH_CYCLES
+  cycles: usize, // internal cycle count, wraps around at SCREEN_REFRESH_CYCLES
 
   mode: u8,  // LCD mode (0-3), cycles through [2, 3, 0] for each row
   dma: u8,   // DMA request, 0xff = no request, 0x00-0xf1 = requested base address
@@ -127,7 +127,7 @@ impl Video {
     let old_ly = self.ly;
     let old_mode = self.mode;
 
-    self.cycles = self.cycles.wrapping_add(cycles as uint) % SCREEN_REFRESH_CYCLES;
+    self.cycles = self.cycles.wrapping_add(cycles as usize) % SCREEN_REFRESH_CYCLES;
     self.ly = (self.cycles / ROW_CYCLES) as u8;
 
     self.mode =
@@ -152,8 +152,8 @@ impl Video {
 
     if old_mode == 3 && self.mode == 0 {
       // H-Blank
-      let row = self.ly as uint;
-      self.draw_row(row);
+      let row_y = self.ly as usize;
+      self.draw_row(row_y);
     }
 
     if old_mode == 1 && self.mode == 2 {
@@ -200,7 +200,7 @@ impl Video {
     self.stat = (self.stat & !STAT_MODE_MASK) | self.mode;
   }
 
-  fn draw_row(&mut self, row: uint) {
+  fn draw_row(&mut self, row: usize) {
     if (self.flags & FLAG_ENABLE_BG_WIN) != 0 {
       self.draw_bg_win_row(row);
     }
@@ -210,8 +210,8 @@ impl Video {
     }
   }
 
-  fn draw_bg_win_row(&mut self, screen_y: uint) {
-    static WIN_OFFSET_X: uint = 7;
+  fn draw_bg_win_row(&mut self, screen_y: usize) {
+    static WIN_OFFSET_X: usize = 7;
 
     let mut tiles_base = TILES_BASE0;
     let mut tiles_bias = TILES_BIAS0;
@@ -234,23 +234,23 @@ impl Video {
         BG_WIN_MAP_BASE1
       };
 
-    let draw_win = (self.flags & FLAG_ENABLE_WIN) != 0 && self.wy_saved as uint <= screen_y;
+    let draw_win = (self.flags & FLAG_ENABLE_WIN) != 0 && self.wy_saved as usize <= screen_y;
 
-    let bg_map_y = screen_y.wrapping_add(self.scy as uint) % (BG_HEIGHT_TILES * TILE_HEIGHT);
-    let win_map_y = screen_y.wrapping_sub(self.wy_saved as uint);
+    let bg_map_y = screen_y.wrapping_add(self.scy as usize) % (BG_HEIGHT_TILES * TILE_HEIGHT);
+    let win_map_y = screen_y.wrapping_sub(self.wy_saved as usize);
 
-    for screen_x in (0u..SCREEN_WIDTH) {
+    for screen_x in (0us..SCREEN_WIDTH) {
       let mut map_base;
       let mut map_x;
       let mut map_y;
 
-      if draw_win && screen_x + WIN_OFFSET_X >= self.wx as uint {
+      if draw_win && screen_x + WIN_OFFSET_X >= self.wx as usize {
         map_base = win_map_base;
-        map_x = screen_x + WIN_OFFSET_X - self.wx as uint;
+        map_x = screen_x + WIN_OFFSET_X - self.wx as usize;
         map_y = win_map_y;
       } else {
         map_base = bg_map_base;
-        map_x = (screen_x + self.scx as uint) % (BG_WIDTH_TILES * TILE_WIDTH);
+        map_x = (screen_x + self.scx as usize) % (BG_WIDTH_TILES * TILE_WIDTH);
         map_y = bg_map_y;
       }
 
@@ -261,7 +261,7 @@ impl Video {
         self.vram[
           map_base.wrapping_add(map_tile_y*BG_WIDTH_TILES)
                   .wrapping_add(map_tile_x)
-        ].wrapping_add(tiles_bias) as uint;
+        ].wrapping_add(tiles_bias) as usize;
       let tile = &self.vram[(tiles_base + tile_num*TILE_BYTES)..];
 
       let tile_x = map_x % TILE_WIDTH;
@@ -271,12 +271,12 @@ impl Video {
     }
   }
 
-  fn draw_obj_row(&mut self, screen_y: uint) {
+  fn draw_obj_row(&mut self, screen_y: usize) {
     // Obj with coordinates (OFFSET_X, OFFSET_Y) is at (0, 0) on screen
-    static OFFSET_X: uint = 8;
-    static OFFSET_Y: uint = 16;
+    static OFFSET_X: usize = 8;
+    static OFFSET_Y: usize = 16;
 
-    //static MAX_OBJS_PER_ROW: uint = 10;
+    //static MAX_OBJS_PER_ROW: usize = 10;
 
     let obj_height =
       if (self.flags & FLAG_OBJ_SIZE) != 0 {
@@ -287,8 +287,8 @@ impl Video {
 
     // Find objs in this row
     let mut objs = vec!();
-    for obj_num in (0u..40u) {
-      let obj_y = self.oam[obj_num * 4] as uint;
+    for obj_num in (0us..40us) {
+      let obj_y = self.oam[obj_num * 4] as usize;
       if obj_y <= screen_y + OFFSET_Y && screen_y + OFFSET_Y < obj_y + obj_height {
         objs.push(obj_num);
       }
@@ -308,9 +308,9 @@ impl Video {
 
     // Draw objs
     for obj in objs.iter() {
-      let obj_y        = self.oam[(*obj) * 4] as uint;
-      let obj_x        = self.oam[(*obj) * 4 + 1] as uint;
-      let mut obj_tile = self.oam[(*obj) * 4 + 2] as uint;
+      let obj_y        = self.oam[(*obj) * 4] as usize;
+      let obj_x        = self.oam[(*obj) * 4 + 1] as usize;
+      let mut obj_tile = self.oam[(*obj) * 4 + 2] as usize;
       let obj_flags    = self.oam[(*obj) * 4 + 3];
       let mut tile_y = screen_y.wrapping_sub(obj_y).wrapping_add(OFFSET_Y);
       let pal = if (obj_flags & OBJ_FLAG_PALETTE) == 0 { self.obp0 } else { self.obp1 };
@@ -350,8 +350,8 @@ impl Video {
 impl mem::Mem for Video {
   fn loadb(&mut self, addr: u16) -> u8 {
     match addr {
-      0x8000...0x9fff => self.vram[(addr - 0x8000) as uint],
-      0xfe00...0xfe9f => self.oam[(addr - 0xfe00) as uint], // OAM
+      0x8000...0x9fff => self.vram[(addr - 0x8000) as usize],
+      0xfe00...0xfe9f => self.oam[(addr - 0xfe00) as usize], // OAM
 
       // I/O registers
       0xff40 => self.flags,
@@ -372,8 +372,8 @@ impl mem::Mem for Video {
 
   fn storeb(&mut self, addr: u16, val: u8) {
     match addr {
-      0x8000...0x9fff => self.vram[(addr - 0x8000) as uint] = val,
-      0xfe00...0xfe9f => self.oam[(addr - 0xfe00) as uint] = val,
+      0x8000...0x9fff => self.vram[(addr - 0x8000) as usize] = val,
+      0xfe00...0xfe9f => self.oam[(addr - 0xfe00) as usize] = val,
 
       // I/O registers
       0xff40 => self.flags = val,
@@ -395,8 +395,8 @@ impl mem::Mem for Video {
 
 fn unpack_tile_pixel(tile: &[u8],
                      palette: u8,
-                     x: uint,
-                     y: uint,
+                     x: usize,
+                     y: usize,
                      pixel: &mut [u8],
                      transp: bool) {
   static COLORS: &'static [& 'static[u8]] = &[
@@ -409,13 +409,13 @@ fn unpack_tile_pixel(tile: &[u8],
   let low_bit  = (tile[2*y]   >> (7 - x)) & 1;
   let high_bit = (tile[2*y+1] >> (7 - x)) & 1;
   let value = (high_bit << 1) | low_bit;
-  let color = ((palette >> (2 * value as uint)) & 0b11) as uint;
+  let color = (palette >> (2 * value)) & 0b11;
 
   if transp && color == 0 {
     return;
   }
 
-  pixel[0] = COLORS[color][2];
-  pixel[1] = COLORS[color][1];
-  pixel[2] = COLORS[color][0];
+  pixel[0] = COLORS[color as usize][2];
+  pixel[1] = COLORS[color as usize][1];
+  pixel[2] = COLORS[color as usize][0];
 }

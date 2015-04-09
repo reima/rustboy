@@ -1,9 +1,9 @@
 use mem::Mem;
 use cpu;
 use disasm;
-use std::old_io::{stdio, BufferedReader, File, IoResult, Reader, Writer};
-use std::old_path::Path;
-use std::num::from_str_radix;
+use std::fs::File;
+use std::io::{Result, stdin, stdout, Write};
+use std::path::Path;
 
 //
 // Debugger
@@ -19,7 +19,7 @@ fn disasm<M: Mem>(mem: &mut M, addr: &mut u16) -> String {
 fn disassemble<M: Mem>(mem: &mut M, addr: u16) {
   let mut pc = addr;
 
-  for _ in (0u..5u) {
+  for _ in (0us..5us) {
     let start_addr = pc;
     let instr = disasm(mem, &mut pc);
     let end_addr = pc;
@@ -37,7 +37,7 @@ fn print_mem<M: Mem>(mem: &mut M, addr: u16) {
   let mut base = addr & 0xfff0;
   let mut start_offset = addr & 0xf;
 
-  for _ in (0u..4u) {
+  for _ in (0us..4us) {
     print!("${:04X}\t", base);
     for offset in (0u16..16u16) {
       if offset == 8 {
@@ -70,38 +70,36 @@ fn print_regs<M>(cpu: &cpu::Cpu<M>) {
            cpu.cycles);
 }
 
-fn expand_tile_row(tile: &[u8], palette: u8, row: uint, pixels: &mut [u8]) {
-  for col in (0u..8u) {
+fn expand_tile_row(tile: &[u8], palette: u8, row: usize, pixels: &mut [u8]) {
+  for col in (0us..8us) {
     let low_bit  = (tile[2*row]   >> (7 - col)) & 1;
     let high_bit = (tile[2*row+1] >> (7 - col)) & 1;
     let value = (high_bit << 1) | low_bit;
-    let color = 3 - ((palette >> (2 * value as uint)) & 0b11);
+    let color = 3 - ((palette >> (2 * value)) & 0b11);
     pixels[col] = color;
   }
 }
 
-fn write_pgm(path: &Path, width: uint, height: uint, data: &[u8]) -> IoResult<()> {
+fn write_pgm(path: &Path, width: usize, height: usize, data: &[u8]) -> Result<()> {
   let mut output = File::create(path).unwrap();
-  try!(output.write_line("P5"));
-  try!(output.write_line(format!("{} {}", width, height).as_slice()));
-  try!(output.write_line("3"));
+  try!(write!(&mut output, "P5\n{} {}\n3\n", width, height));
   try!(output.write_all(data));
 
   Ok(())
 }
 
-fn dump_tiles<M: Mem>(m: &mut M) -> IoResult<()> {
+fn dump_tiles<M: Mem>(m: &mut M) -> Result<()> {
   let mut data = [0u8; 16*24*8*8];
 
-  for num in (0u..384u) {
+  for num in (0us..384us) {
     let mut tile = [0u8; 16];
-    for offset in (0u..16u) {
+    for offset in (0us..16us) {
       tile[offset] = m.loadb(0x8000u16 + num as u16 * 16u16 + offset as u16);
     }
     let row = num / 16;
     let col = num % 16;
     let pixels = &mut data[(row * 16 * 8 + col)*8..];
-    for row in (0u..8u) {
+    for row in (0us..8us) {
       expand_tile_row(&mut tile, 0xe4, row, &mut pixels[16*8*row..]);
     }
   }
@@ -109,7 +107,7 @@ fn dump_tiles<M: Mem>(m: &mut M) -> IoResult<()> {
   write_pgm(&Path::new("tiles.pgm"), 16*8, 24*8, &data)
 }
 
-fn dump_bg<M: Mem>(m: &mut M) -> IoResult<()> {
+fn dump_bg<M: Mem>(m: &mut M) -> Result<()> {
   let mut tile_base = 0x8800;
   let mut tile_bias = 128u8;
   let mut map_base = 0x9800;
@@ -125,13 +123,13 @@ fn dump_bg<M: Mem>(m: &mut M) -> IoResult<()> {
 
   // Load tiles
   let mut tiles = [0xffu8; 256*16];
-  for offset in (0u..256*16) {
+  for offset in (0us..256*16) {
     tiles[offset] = m.loadb((tile_base + offset) as u16);
   }
 
   // Load map
   let mut map = [0u8; 32*32];
-  for offset in (0u..32u*32u) {
+  for offset in (0us..32us*32us) {
     map[offset] = m.loadb((map_base + offset) as u16);
   }
 
@@ -141,12 +139,12 @@ fn dump_bg<M: Mem>(m: &mut M) -> IoResult<()> {
   let mut data = [0u8; 32*32*8*8];
   let row_pitch = 32*8;
 
-  for row in (0u..32u) {
-    for col in (0u..32u) {
-      let tile_num = (map[row*32 + col] + tile_bias) as uint;
-      let tile = &tiles[tile_num * 16..];
+  for row in (0us..32us) {
+    for col in (0us..32us) {
+      let tile_num = map[row*32 + col] + tile_bias;
+      let tile = &tiles[tile_num as usize * 16..];
       let pixels = &mut data[(row*row_pitch + col)*8..];
-      for tile_row in (0u..8u) {
+      for tile_row in (0us..8us) {
         expand_tile_row(tile,
                         pal,
                         tile_row,
@@ -165,7 +163,7 @@ fn parse_addr(s: &str) -> Option<u16> {
     slice = &slice[1..];
     radix = 16;
   }
-  from_str_radix::<u16>(slice, radix).ok()
+  u16::from_str_radix(slice, radix).ok()
 }
 
 pub struct Debugger {
@@ -290,14 +288,15 @@ impl Debugger {
   }
 
   pub fn prompt<M: Mem>(&mut self, cpu: &mut cpu::Cpu<M>) -> DebuggerCommand {
-    let mut stdin = stdio::stdin();
-
     loop {
-      stdio::print("> ");
-      stdio::flush();
-      match stdin.read_line() {
-        Ok(line) => {
-          let words = line.as_slice().words().collect::<Vec<&str>>();
+      print!("> ");
+      stdout().flush();
+      let mut line = String::new();
+      match stdin().read_line(&mut line) {
+        Ok(_) => {
+          fn is_whitespace(c: char) -> bool { c.is_whitespace() }
+          let is_whitespace: fn(char) -> bool = is_whitespace;
+          let words = line.split(is_whitespace).collect();
           match self.dispatch(cpu, words) {
             Some(command) => return command,
             None => (),

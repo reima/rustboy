@@ -4,7 +4,7 @@ use mem;
 // Statics
 //
 
-const DIV_CYCLE_SHIFT: uint = 8;
+const DIV_CYCLE_SHIFT: usize = 8;
 const TIMA_CYCLE_SHIFT: &'static [u16] = &[
   10,  // =   4,096 Hz
   4,   // = 262,144 Hz
@@ -42,7 +42,7 @@ impl Timer {
     self.div_cycles = self.div_cycles.wrapping_add(cycles as u16);
     if (self.tac & TIMER_START_FLAG) != 0 {
       self.tima_cycles_mod += cycles as u16;
-      let shift = TIMA_CYCLE_SHIFT[(self.tac & TIMER_INPUT_CLOCK_MASK) as uint] as uint;
+      let shift = TIMA_CYCLE_SHIFT[(self.tac & TIMER_INPUT_CLOCK_MASK) as usize];
       let increment = self.tima_cycles_mod >> shift;
       if increment != 0 {
         // TIMA must be incremented

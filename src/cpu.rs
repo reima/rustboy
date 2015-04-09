@@ -1,22 +1,20 @@
 use mem;
 
-use std::num::Int;
-
 //
 // Statics
 //
 
-const CARRY_OFFSET:      uint = 4;
-const HALF_CARRY_OFFSET: uint = 5;
-const ADD_SUB_OFFSET:    uint = 6;
-const ZERO_OFFSET:       uint = 7;
+const CARRY_OFFSET:      usize = 4;
+const HALF_CARRY_OFFSET: usize = 5;
+const ADD_SUB_OFFSET:    usize = 6;
+const ZERO_OFFSET:       usize = 7;
 
 const CARRY_FLAG:        u8 = 1 << CARRY_OFFSET;
 const HALF_CARRY_FLAG:   u8 = 1 << HALF_CARRY_OFFSET;
 const ADD_SUB_FLAG:      u8 = 1 << ADD_SUB_OFFSET;
 const ZERO_FLAG:         u8 = 1 << ZERO_OFFSET;
 
-pub const CYCLES_PER_SEC: uint = 4194304; // 4.194304 MHz
+pub const CYCLES_PER_SEC: usize = 4194304; // 4.194304 MHz
 
 
 //
@@ -47,7 +45,7 @@ impl Regs {
 // Instruction decoding
 //
 
-#[derive(Debug, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum Reg8 {
   A, B, C, D, E, H, L
 }
@@ -78,7 +76,7 @@ impl Reg8 {
   }
 }
 
-#[derive(Debug, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum Reg16 {
   AF, BC, DE, HL, SP, PC
 }
@@ -107,7 +105,7 @@ impl Reg16 {
   }
 }
 
-#[derive(Copy)]
+#[derive(Clone, Copy)]
 pub enum Addr8 {
   Imm(u8),
   Ind(u8),
@@ -184,7 +182,7 @@ impl Addr8 {
   }
 }
 
-#[derive(Copy)]
+#[derive(Clone, Copy)]
 pub enum Addr16 {
   Imm(u16),
   Ind(u16),
@@ -592,7 +590,7 @@ impl<M: mem::Mem> Cpu<M> {
         self.push(Addr16::Reg16Dir(Reg16::PC));  // Push PC
         self.regs.pc = 0x40 + irq as u16 * 0x08; // Jump to ISR
         self.ime = false;                        // Disable interrupts
-        self.mem.storeb(0xff0f, request_mask & !(1 << irq as uint)); // Clear IRQ flag
+        self.mem.storeb(0xff0f, request_mask & !(1 << irq)); // Clear IRQ flag
         self.cycles += 20;
         return 20 // 5 machine cycles, according to GBCPUman.pdf
       }
@@ -1116,7 +1114,7 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
   fn bit(&mut self, bit: u8, src: Addr8) -> u8 {
     let val = src.load(self);
 
-    self.set_flag(ZERO_FLAG, (val & (1 << bit as uint)) == 0);
+    self.set_flag(ZERO_FLAG, (val & (1 << bit)) == 0);
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, true);
 
@@ -1126,7 +1124,7 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
   fn res(&mut self, bit: u8, dst: Addr8) -> u8 {
     let val = dst.load(self);
 
-    dst.store(self, val & !(1 << bit as uint));
+    dst.store(self, val & !(1 << bit));
 
     8 + 2 * dst.cycles()
   }
@@ -1134,7 +1132,7 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
   fn set(&mut self, bit: u8, dst: Addr8) -> u8 {
     let val = dst.load(self);
 
-    dst.store(self, val | (1 << bit as uint));
+    dst.store(self, val | (1 << bit));
 
     8 + 2 * dst.cycles()
   }

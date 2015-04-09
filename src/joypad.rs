@@ -40,7 +40,7 @@ impl Joypad {
   }
 
   pub fn set_button(&mut self, button: Button, pressed: bool) {
-    self.pressed[button as uint] = pressed;
+    self.pressed[button as usize] = pressed;
     self.update_input();
   }
 
@@ -55,31 +55,31 @@ impl Joypad {
     let mut input = INPUT_MASK;
 
     if (self.p1 & SELECT_DIRECTION_KEYS) == 0 {
-      if self.pressed[Button::Right as uint] {
+      if self.pressed[Button::Right as usize] {
         input &= !INPUT_RIGHT;
       }
-      if self.pressed[Button::Left as uint] {
+      if self.pressed[Button::Left as usize] {
         input &= !INPUT_LEFT;
       }
-      if self.pressed[Button::Up as uint] {
+      if self.pressed[Button::Up as usize] {
         input &= !INPUT_UP;
       }
-      if self.pressed[Button::Down as uint] {
+      if self.pressed[Button::Down as usize] {
         input &= !INPUT_DOWN;
       }
     }
 
     if (self.p1 & SELECT_BUTTON_KEYS) == 0 {
-      if self.pressed[Button::A as uint] {
+      if self.pressed[Button::A as usize] {
         input &= !INPUT_BUTTON_A;
       }
-      if self.pressed[Button::B as uint] {
+      if self.pressed[Button::B as usize] {
         input &= !INPUT_BUTTON_B;
       }
-      if self.pressed[Button::Select as uint] {
+      if self.pressed[Button::Select as usize] {
         input &= !INPUT_SELECT;
       }
-      if self.pressed[Button::Start as uint] {
+      if self.pressed[Button::Start as usize] {
         input &= !INPUT_START;
       }
     }

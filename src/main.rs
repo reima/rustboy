@@ -1,18 +1,11 @@
-#![feature(core)]
-#![feature(int_uint)]
-#![feature(old_io)]
-#![feature(old_path)]
-#![feature(os)]
-#![feature(str_words)]
-
 #[macro_use]
 extern crate log;
 
 extern crate sdl2;
 
 use mem::Mem;
-use std::old_io::stdio;
-use std::old_path::Path;
+use std::io::stdout;
+use std::path::Path;
 
 mod cartridge;
 mod cpu;
@@ -164,7 +157,7 @@ enum State {
 }
 
 fn main() {
-  let args = std::os::args();
+  let args: Vec<_> = std::env::args().collect();
   if args.len() != 2 && !(args.len() == 3 && args[1] == "-d".to_string()) {
     println!("Usage: {} [-d] rom.gb", args[0]);
     return;
@@ -179,7 +172,7 @@ fn main() {
       &args[2]
     };
 
-  let mut cart = match cartridge::Cartridge::from_path(&Path::new(path.as_slice())) {
+  let mut cart = match cartridge::Cartridge::from_path(&Path::new(path)) {
     Ok(cart) => Box::new(cart),
     Err(e)   => panic!("I/O error: {}", e),
   };
@@ -204,7 +197,7 @@ fn main() {
     intr: interrupt::InterruptCtrl::new(),
     sound: sound::Sound,
     video: video::Video::new(),
-    serial: serial::SerialIO::new(Some(Box::new(stdio::stdout()))),
+    serial: serial::SerialIO::new(Some(Box::new(stdout()))),
     joypad: joypad::Joypad::new(),
     dummy: Dummy,
   };
@@ -282,7 +275,7 @@ fn main() {
         frames += 1;
         if last_frame_start_count - last_fps_update > counts_per_sec {
           let fps = frames * (last_frame_start_count - last_fps_update) / counts_per_sec;
-          video_out.set_title(format!("Rustboy - {} fps", fps).as_slice());
+          video_out.set_title(format!("Rustboy - {} fps", fps).as_ref());
           last_fps_update = now;
           frames = 0;
         }
