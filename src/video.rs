@@ -10,8 +10,10 @@ const MODE2_CYCLES: usize = 80;    // Transfer to LCD
 const MODE3_CYCLES: usize = 172;   // Transfer to LCD
 
 const MODE2_START: usize = 0;
-const MODE3_START: usize = MODE2_START + MODE2_CYCLES;
-const MODE0_START: usize = MODE3_START + MODE3_CYCLES;
+const MODE2_END: usize = MODE2_START + MODE2_CYCLES - 1;
+const MODE3_START: usize = MODE2_END + 1;
+const MODE3_END : usize = MODE3_START + MODE3_CYCLES - 1;
+const MODE0_START: usize = MODE3_END + 1;
 
 const ROW_CYCLES: usize = MODE0_CYCLES + MODE2_CYCLES + MODE3_CYCLES;
 
@@ -133,9 +135,9 @@ impl Video {
     self.mode =
       if self.ly < SCREEN_HEIGHT as u8 {
         match self.cycles % ROW_CYCLES {
-          MODE2_START ... (MODE3_START - 1) => 2,
-          MODE3_START ... (MODE0_START - 1) => 3,
-          _                                 => 0,
+          MODE2_START ... MODE2_END => 2,
+          MODE3_START ... MODE3_END => 3,
+          _                         => 0,
         }
       } else {
         1 // V-Blank
