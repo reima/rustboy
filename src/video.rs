@@ -241,7 +241,7 @@ impl Video {
     let bg_map_y = screen_y.wrapping_add(self.scy as usize) % (BG_HEIGHT_TILES * TILE_HEIGHT);
     let win_map_y = screen_y.wrapping_sub(self.wy_saved as usize);
 
-    for screen_x in (0us..SCREEN_WIDTH) {
+    for screen_x in (0usize..SCREEN_WIDTH) {
       let mut map_base;
       let mut map_x;
       let mut map_y;
@@ -289,7 +289,7 @@ impl Video {
 
     // Find objs in this row
     let mut objs = vec!();
-    for obj_num in (0us..40us) {
+    for obj_num in (0usize..40usize) {
       let obj_y = self.oam[obj_num * 4] as usize;
       if obj_y <= screen_y + OFFSET_Y && screen_y + OFFSET_Y < obj_y + obj_height {
         objs.push(obj_num);
