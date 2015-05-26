@@ -86,33 +86,26 @@ impl<'a> Mem for MemMap<'a> {
 // Video Output
 //
 
-struct VideoOut<'renderer> {
-  renderer: &'renderer sdl2::render::Renderer,
-  texture: sdl2::render::Texture<'renderer>,
+struct VideoOut {
+  renderer: sdl2::render::Renderer<'static>,
+  texture: sdl2::render::Texture,
 }
 
-impl<'renderer> VideoOut<'renderer> {
-  fn init_renderer(scale: i32) -> sdl2::render::Renderer {
-    use sdl2::render::Renderer;
+impl VideoOut {
+  fn new(sdl_context: &sdl2::Sdl, scale: u32) -> VideoOut {
+    let window_width = video::SCREEN_WIDTH as u32 * scale;
+    let window_height = video::SCREEN_HEIGHT as u32 * scale;
 
-    let window_width = video::SCREEN_WIDTH as i32 * scale;
-    let window_height = video::SCREEN_HEIGHT as i32 * scale;
+    let window = sdl_context.window("rustboy", window_width, window_height)
+      .position_centered()
+      .build()
+      .unwrap();
 
-    match Renderer::new_with_window(window_width,
-                                    window_height,
-                                    sdl2::video::RESIZABLE) {
-      Ok(renderer) => renderer,
-      Err(err) => panic!("Failed to create renderer: {}", err)
-    }
-  }
+    let renderer = window.renderer().build().unwrap();
 
-  fn new(renderer: &'renderer sdl2::render::Renderer) -> VideoOut<'renderer> {
-    let texture = match renderer.create_texture_streaming(
+    let texture = renderer.create_texture_streaming(
         sdl2::pixels::PixelFormatEnum::ARGB8888,
-        (video::SCREEN_WIDTH as i32, video::SCREEN_HEIGHT as i32)) {
-      Ok(texture) => texture,
-      Err(err) => panic!("Failed to create texture: {}", err),
-    };
+        (video::SCREEN_WIDTH as i32, video::SCREEN_HEIGHT as i32)).unwrap();
 
     VideoOut { renderer: renderer, texture: texture }
   }
@@ -124,11 +117,8 @@ impl<'renderer> VideoOut<'renderer> {
     drawer.present();
   }
 
-  fn set_title(&self, title: &str) {
-    match self.renderer.get_parent() {
-      &sdl2::render::RendererParent::Window(ref window) => { window.set_title(title); }
-      _ => (),
-    }
+  fn set_title(&mut self, sdl_context: &sdl2::Sdl, title: &str) {
+    self.renderer.window_properties(sdl_context).unwrap().set_title(title);
   }
 }
 
@@ -204,11 +194,10 @@ fn main() {
   let mut cpu = cpu::Cpu::new(memmap);
   cpu.regs.pc = 0x100;
 
-  let sdl_context = sdl2::init(sdl2::INIT_VIDEO).unwrap();
+  let mut sdl_context = sdl2::init().video().unwrap();
 
-  let renderer = VideoOut::init_renderer(4);
-  let mut video_out = VideoOut::new(&renderer);
-  video_out.set_title("Rustboy");
+  let mut video_out = VideoOut::new(&sdl_context, 4);
+  video_out.set_title(&sdl_context, "Rustboy");
 
   let mut state = State::Paused;
   let mut debugger = debug::Debugger::new();
@@ -275,7 +264,7 @@ fn main() {
         frames += 1;
         if last_frame_start_count - last_fps_update > counts_per_sec {
           let fps = frames * (last_frame_start_count - last_fps_update) / counts_per_sec;
-          video_out.set_title(format!("Rustboy - {} fps", fps).as_ref());
+          video_out.set_title(&sdl_context, format!("Rustboy - {} fps", fps).as_ref());
           last_fps_update = now;
           frames = 0;
         }

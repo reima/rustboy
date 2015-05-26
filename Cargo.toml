@@ -4,6 +4,5 @@ version = "0.0.1"
 authors = ["Matthias Reitinger <reima@edenprime.de>"]
 
 [dependencies]
-sdl2 = "0.1"
+sdl2 = "0.4"
 log = "0.3"
-
