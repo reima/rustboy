@@ -193,8 +193,8 @@ fn main() {
   let mut cpu = cpu::Cpu::new(memmap);
   cpu.regs.pc = 0x100;
 
-  let mut sdl_context = sdl2::init().unwrap();
-  let mut sdl_video = sdl_context.video().unwrap();
+  let sdl_context = sdl2::init().unwrap();
+  let sdl_video = sdl_context.video().unwrap();
   let mut sdl_events = sdl_context.event_pump().unwrap();
   let mut sdl_timer = sdl_context.timer().unwrap();
 

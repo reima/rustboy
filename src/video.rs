@@ -242,9 +242,9 @@ impl Video {
     let win_map_y = screen_y.wrapping_sub(self.wy_saved as usize);
 
     for screen_x in (0usize..SCREEN_WIDTH) {
-      let mut map_base;
-      let mut map_x;
-      let mut map_y;
+      let map_base;
+      let map_x;
+      let map_y;
 
       if draw_win && screen_x + WIN_OFFSET_X >= self.wx as usize {
         map_base = win_map_base;
