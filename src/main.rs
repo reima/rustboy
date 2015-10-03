@@ -92,11 +92,11 @@ struct VideoOut {
 }
 
 impl VideoOut {
-  fn new(sdl_context: &sdl2::Sdl, scale: u32) -> VideoOut {
+  fn new(sdl_video: &sdl2::VideoSubsystem, scale: u32) -> VideoOut {
     let window_width = video::SCREEN_WIDTH as u32 * scale;
     let window_height = video::SCREEN_HEIGHT as u32 * scale;
 
-    let window = sdl_context.window("rustboy", window_width, window_height)
+    let window = sdl_video.window("rustboy", window_width, window_height)
       .position_centered()
       .build()
       .unwrap();
@@ -105,34 +105,33 @@ impl VideoOut {
 
     let texture = renderer.create_texture_streaming(
         sdl2::pixels::PixelFormatEnum::ARGB8888,
-        (video::SCREEN_WIDTH as i32, video::SCREEN_HEIGHT as i32)).unwrap();
+        (video::SCREEN_WIDTH as u32, video::SCREEN_HEIGHT as u32)).unwrap();
 
     VideoOut { renderer: renderer, texture: texture }
   }
 
   fn blit_and_present(&mut self, pixels: &[u8]) {
-    let _ = self.texture.update(None, pixels, (video::SCREEN_WIDTH * 4) as i32);
-    let mut drawer = self.renderer.drawer();
-    drawer.copy(&self.texture, None, None);
-    drawer.present();
+    let _ = self.texture.update(None, pixels, video::SCREEN_WIDTH * 4);
+    self.renderer.copy(&self.texture, None, None);
+    self.renderer.present();
   }
 
-  fn set_title(&mut self, sdl_context: &sdl2::Sdl, title: &str) {
-    self.renderer.window_properties(sdl_context).unwrap().set_title(title);
+  fn set_title(&mut self, title: &str) {
+    self.renderer.window_mut().unwrap().set_title(title);
   }
 }
 
 
-fn keymap(code: sdl2::keycode::KeyCode) -> Option<joypad::Button> {
+fn keymap(code: sdl2::keyboard::Keycode) -> Option<joypad::Button> {
   match code {
-    sdl2::keycode::KeyCode::Up     => Some(joypad::Button::Up),
-    sdl2::keycode::KeyCode::Down   => Some(joypad::Button::Down),
-    sdl2::keycode::KeyCode::Left   => Some(joypad::Button::Left),
-    sdl2::keycode::KeyCode::Right  => Some(joypad::Button::Right),
-    sdl2::keycode::KeyCode::Return => Some(joypad::Button::Start),
-    sdl2::keycode::KeyCode::RShift => Some(joypad::Button::Select),
-    sdl2::keycode::KeyCode::C      => Some(joypad::Button::A),
-    sdl2::keycode::KeyCode::X      => Some(joypad::Button::B),
+    sdl2::keyboard::Keycode::Up     => Some(joypad::Button::Up),
+    sdl2::keyboard::Keycode::Down   => Some(joypad::Button::Down),
+    sdl2::keyboard::Keycode::Left   => Some(joypad::Button::Left),
+    sdl2::keyboard::Keycode::Right  => Some(joypad::Button::Right),
+    sdl2::keyboard::Keycode::Return => Some(joypad::Button::Start),
+    sdl2::keyboard::Keycode::RShift => Some(joypad::Button::Select),
+    sdl2::keyboard::Keycode::C      => Some(joypad::Button::A),
+    sdl2::keyboard::Keycode::X      => Some(joypad::Button::B),
     _ => None,
   }
 }
@@ -194,17 +193,20 @@ fn main() {
   let mut cpu = cpu::Cpu::new(memmap);
   cpu.regs.pc = 0x100;
 
-  let mut sdl_context = sdl2::init().video().unwrap();
+  let mut sdl_context = sdl2::init().unwrap();
+  let mut sdl_video = sdl_context.video().unwrap();
+  let mut sdl_events = sdl_context.event_pump().unwrap();
+  let mut sdl_timer = sdl_context.timer().unwrap();
 
-  let mut video_out = VideoOut::new(&sdl_context, 4);
-  video_out.set_title(&sdl_context, "Rustboy");
+  let mut video_out = VideoOut::new(&sdl_video, 4);
+  video_out.set_title("Rustboy");
 
   let mut state = State::Paused;
   let mut debugger = debug::Debugger::new();
 
-  let counts_per_sec = sdl2::timer::get_performance_frequency();
+  let counts_per_sec = sdl_timer.performance_frequency();
   let counts_per_frame = counts_per_sec * video::SCREEN_REFRESH_CYCLES as u64 / cpu::CYCLES_PER_SEC as u64;
-  let mut last_frame_start_count = sdl2::timer::get_performance_counter();
+  let mut last_frame_start_count = sdl_timer.performance_counter();
 
   let mut last_fps_update = last_frame_start_count;
   let mut frames = 0;
@@ -252,19 +254,19 @@ fn main() {
 
       // Synchronize speed based on frame time
       if new_frame {
-        let now = sdl2::timer::get_performance_counter();
+        let now = sdl_timer.performance_counter();
         let frame_time = now - last_frame_start_count;
         if frame_time < counts_per_frame {
           let delay_msec = 1_000 * (counts_per_frame - frame_time) / counts_per_sec;
-          sdl2::timer::delay(delay_msec as u32);
+          sdl_timer.delay(delay_msec as u32);
         }
         // TODO: What should we do when we take longer than counts_per_frame?
-        last_frame_start_count = sdl2::timer::get_performance_counter();
+        last_frame_start_count = sdl_timer.performance_counter();
 
         frames += 1;
         if last_frame_start_count - last_fps_update > counts_per_sec {
           let fps = frames * (last_frame_start_count - last_fps_update) / counts_per_sec;
-          video_out.set_title(&sdl_context, format!("Rustboy - {} fps", fps).as_ref());
+          video_out.set_title(format!("Rustboy - {} fps", fps).as_ref());
           last_fps_update = now;
           frames = 0;
         }
@@ -285,23 +287,23 @@ fn main() {
     }
 
     // Event handling loop
-    for event in sdl_context.event_pump().poll_iter() {
+    for event in sdl_events.poll_iter() {
       use sdl2::event::Event;
 
       match event {
         Event::Quit{..} => { state = State::Done; break }
-        Event::KeyDown{keycode: key, ..} => {
+        Event::KeyDown{keycode: Some(key), ..} => {
           match keymap(key) {
             Some(button) => cpu.mem.joypad.set_button(button, true),
             None => {
               match key {
-                sdl2::keycode::KeyCode::Escape => { state = State::Paused },
+                sdl2::keyboard::Keycode::Escape => { state = State::Paused },
                 _ => (),
               }
             }
           }
         },
-        Event::KeyUp{keycode: key, ..} => {
+        Event::KeyUp{keycode: Some(key), ..} => {
           match keymap(key) {
             Some(button) => cpu.mem.joypad.set_button(button, false),
             None => (),
