@@ -105,7 +105,8 @@ impl VideoOut {
 
     let texture = renderer.create_texture_streaming(
         sdl2::pixels::PixelFormatEnum::ARGB8888,
-        (video::SCREEN_WIDTH as u32, video::SCREEN_HEIGHT as u32)).unwrap();
+        video::SCREEN_WIDTH as u32,
+        video::SCREEN_HEIGHT as u32).unwrap();
 
     VideoOut { renderer: renderer, texture: texture }
   }
