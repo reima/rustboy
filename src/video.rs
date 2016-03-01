@@ -13,7 +13,7 @@ const MODE2_START: usize = 0;
 const MODE2_END: usize = MODE2_START + MODE2_CYCLES - 1;
 const MODE3_START: usize = MODE2_END + 1;
 const MODE3_END : usize = MODE3_START + MODE3_CYCLES - 1;
-const MODE0_START: usize = MODE3_END + 1;
+//const MODE0_START: usize = MODE3_END + 1;
 
 const ROW_CYCLES: usize = MODE0_CYCLES + MODE2_CYCLES + MODE3_CYCLES;
 
@@ -241,7 +241,7 @@ impl Video {
     let bg_map_y = screen_y.wrapping_add(self.scy as usize) % (BG_HEIGHT_TILES * TILE_HEIGHT);
     let win_map_y = screen_y.wrapping_sub(self.wy_saved as usize);
 
-    for screen_x in (0usize..SCREEN_WIDTH) {
+    for screen_x in 0usize..SCREEN_WIDTH {
       let map_base;
       let map_x;
       let map_y;
@@ -289,7 +289,7 @@ impl Video {
 
     // Find objs in this row
     let mut objs = vec!();
-    for obj_num in (0usize..40usize) {
+    for obj_num in 0usize..40usize {
       let obj_y = self.oam[obj_num * 4] as usize;
       if obj_y <= screen_y + OFFSET_Y && screen_y + OFFSET_Y < obj_y + obj_height {
         objs.push(obj_num);
@@ -335,7 +335,7 @@ impl Video {
 
       let tile = &self.vram[(TILES_BASE1 + obj_tile*TILE_BYTES)..];
 
-      for mut tile_x in (0..TILE_WIDTH) {
+      for mut tile_x in 0..TILE_WIDTH {
         let screen_x = obj_x + tile_x;
         if OFFSET_X <= screen_x && screen_x < SCREEN_WIDTH + OFFSET_X {
           let pixel = &mut self.screen[((screen_y * SCREEN_WIDTH + screen_x - OFFSET_X) * 4)..];

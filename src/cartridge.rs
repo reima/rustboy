@@ -56,7 +56,7 @@ impl Cartridge {
 
     try!(file.seek(SeekFrom::Start(0)));
 
-    for _ in (0..rom_bank_count) {
+    for _ in 0..rom_bank_count {
       let mut bank = [0u8; ROM_BANK_SIZE];
       try!(file.read(&mut bank));
       rom_banks.push(bank);
