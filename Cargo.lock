@@ -3,17 +3,17 @@ name = "rustboy"
 version = "0.0.1"
 dependencies = [
  "log 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "sdl2 0.15.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sdl2 0.22.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "bitflags"
-version = "0.3.3"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "lazy_static"
-version = "0.1.15"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
@@ -53,20 +53,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "sdl2"
-version = "0.15.0"
+version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "bitflags 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "lazy_static 0.1.15 (registry+https://github.com/rust-lang/crates.io-index)",
+ "bitflags 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "lazy_static 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "num 0.1.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.3.14 (registry+https://github.com/rust-lang/crates.io-index)",
- "sdl2-sys 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sdl2-sys 0.22.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "sdl2-sys"
-version = "0.8.0"
+version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "libc 0.2.7 (registry+https://github.com/rust-lang/crates.io-index)",
