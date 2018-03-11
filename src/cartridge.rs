@@ -31,7 +31,7 @@ impl Cartridge {
 
     let mut header = [0u8; 80];
     try!(file.seek(SeekFrom::Start(HEADER_OFFSET)));
-    try!(file.read(&mut header));
+    try!(file.read_exact(&mut header));
 
     let title = str::from_utf8(&header[0x34..0x43]).unwrap().to_string();
 
@@ -58,7 +58,7 @@ impl Cartridge {
 
     for _ in 0..rom_bank_count {
       let mut bank = [0u8; ROM_BANK_SIZE];
-      try!(file.read(&mut bank));
+      try!(file.read_exact(&mut bank));
       rom_banks.push(bank);
     }
 
@@ -68,13 +68,13 @@ impl Cartridge {
     }
 
     let cart = Cartridge {
-      title: title,
-      cartridge_type: cartridge_type,
-      rom_size: rom_size,
-      ram_size: ram_size,
-      rom_banks: rom_banks,
+      title,
+      cartridge_type,
+      rom_size,
+      ram_size,
+      rom_banks,
       rom_bank: 1,
-      mbc: mbc,
+      mbc,
     };
 
     Ok(cart)
@@ -98,12 +98,12 @@ impl Mem for Cartridge {
         match addr {
           0x0000...0x1fff => debug!("RAM enable"),
           0x2000...0x3fff => { // set lower 5 bits of ROM bank
-            let bank_bits_0_4 = cmp::max(val & 0b11111, 1u8); // treat 0 as 1
-            self.rom_bank = (self.rom_bank & (0b11100000)) | bank_bits_0_4;
+            let bank_bits_0_4 = cmp::max(val & 0b1_1111, 1u8); // treat 0 as 1
+            self.rom_bank = (self.rom_bank & (0b1110_0000)) | bank_bits_0_4;
           },
           0x4000...0x5fff => { // set higher 2 bits of ROM bank
             let bank_bits_5_6 = (val & 0b11) << 5;
-            self.rom_bank = (self.rom_bank & (0b10011111)) | bank_bits_5_6;
+            self.rom_bank = (self.rom_bank & (0b1001_1111)) | bank_bits_5_6;
           },
           0x6000...0x7fff => debug!("ROM/RAM mode select at ${:04X}", addr),
           0xa000...0xbfff => debug!("RAM store at ${:04X}", addr),

@@ -4,13 +4,13 @@ use mem;
 // Interrupt Controller
 //
 
-pub const IRQ_VBLANK: u8 = 0b00001;
-pub const IRQ_LCD:    u8 = 0b00010;
-pub const IRQ_TIMER:  u8 = 0b00100;
-//pub const IRQ_SERIAL: u8 = 0b01000;
-//pub const IRQ_JOYPAD: u8 = 0b10000;
+pub const IRQ_VBLANK: u8 = 0b0_0001;
+pub const IRQ_LCD:    u8 = 0b0_0010;
+pub const IRQ_TIMER:  u8 = 0b0_0100;
+//pub const IRQ_SERIAL: u8 = 0b0_1000;
+//pub const IRQ_JOYPAD: u8 = 0b1_0000;
 
-const IRQ_MASK: u8 = 0b11111;
+const IRQ_MASK: u8 = 0b1_1111;
 
 pub struct InterruptCtrl {
   flag: u8,

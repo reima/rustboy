@@ -15,7 +15,7 @@ pub struct SerialIO<'a> {
 
 impl<'a> SerialIO<'a> {
   pub fn new(writer: Option<Box<Write + 'a>>) -> SerialIO<'a> {
-    SerialIO { data: 0, control: 0, writer: writer }
+    SerialIO { data: 0, control: 0, writer }
   }
 }
 
@@ -38,9 +38,8 @@ impl<'a> mem::Mem for SerialIO<'a> {
         if (val & SERIAL_TRANSFER_FLAG) != 0 {
           // Start transfer
           // TODO: This should be done with 8192 bits per second
-          match self.writer {
-            Some(ref mut writer) => { let _ = writer.write(&[self.data]); },
-            None => (),
+          if let Some(ref mut writer) = self.writer {
+            let _ = writer.write(&[self.data]);
           }
           // No external GameBoy present, receive dummy value
           self.data = 0xff;

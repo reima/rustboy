@@ -10,7 +10,7 @@ use std::path::Path;
 //
 
 fn disasm<M: Mem>(mem: &mut M, addr: &mut u16) -> String {
-  let mut d = disasm::Disasm { mem: mem, pc: *addr };
+  let mut d = disasm::Disasm { mem, pc: *addr };
   let result = cpu::decode(&mut d);
   *addr = d.pc;
   result
@@ -49,7 +49,7 @@ fn print_mem<M: Mem>(mem: &mut M, addr: u16) {
         print!("   ");
       }
     }
-    println!("");
+    println!();
     base += 0x10;
     start_offset = 0;
 
@@ -100,11 +100,11 @@ fn dump_tiles<M: Mem>(m: &mut M) -> Result<()> {
     let col = num % 16;
     let pixels = &mut data[(row * 16 * 8 + col)*8..];
     for row in 0usize..8usize {
-      expand_tile_row(&mut tile, 0xe4, row, &mut pixels[16*8*row..]);
+      expand_tile_row(&tile, 0xe4, row, &mut pixels[16*8*row..]);
     }
   }
 
-  write_pgm(&Path::new("tiles.pgm"), 16*8, 24*8, &data)
+  write_pgm(Path::new("tiles.pgm"), 16*8, 24*8, &data)
 }
 
 fn dump_bg<M: Mem>(m: &mut M) -> Result<()> {
@@ -113,11 +113,11 @@ fn dump_bg<M: Mem>(m: &mut M) -> Result<()> {
   let mut map_base = 0x9800;
 
   let lcdc = m.loadb(0xff40);
-  if (lcdc & 0b10000) != 0 {
+  if (lcdc & 0b1_0000) != 0 {
     tile_base = 0x8000;
     tile_bias = 0u8;
   }
-  if (lcdc & 0b01000) != 0 {
+  if (lcdc & 0b0_1000) != 0 {
     map_base = 0x9c00;
   }
 
@@ -153,16 +153,12 @@ fn dump_bg<M: Mem>(m: &mut M) -> Result<()> {
     }
   }
 
-  write_pgm(&Path::new("bg.pgm"), 32*8, 32*8, &data)
+  write_pgm(Path::new("bg.pgm"), 32*8, 32*8, &data)
 }
 
 fn parse_addr(s: &str) -> Option<u16> {
   let mut slice = s;
-  let mut radix = 10;
-  if slice.starts_with("$") {
-    slice = &slice[1..];
-    radix = 16;
-  }
+  let radix = if slice.starts_with('$') { slice = &slice[1..]; 16 } else { 10 };
   u16::from_str_radix(slice, radix).ok()
 }
 
@@ -182,11 +178,11 @@ impl Debugger {
   }
 
   fn show_breakpoints(&self) {
-    if self.breakpoints.len() == 0 {
+    if self.breakpoints.is_empty() {
       println!("No breakpoints");
     } else {
       println!("Breakpoints:");
-      for bp in self.breakpoints.iter() {
+      for bp in &self.breakpoints {
         println!("  ${:04X}", *bp);
       }
     }
@@ -211,8 +207,8 @@ impl Debugger {
     }
   }
 
-  fn dispatch<M: Mem>(&mut self, cpu: &mut cpu::Cpu<M>, words: Vec<&str>) -> Option<DebuggerCommand> {
-    if words.len() == 0 {
+  fn dispatch<M: Mem>(&mut self, cpu: &mut cpu::Cpu<M>, words: &[&str]) -> Option<DebuggerCommand> {
+    if words.is_empty() {
       return None;
     }
 
@@ -249,7 +245,7 @@ impl Debugger {
           // add/remove breakpoint
           let mut add = true;
           let mut arg = words[1];
-          if arg.starts_with("-") {
+          if arg.starts_with('-') {
             arg = &arg[1..];
             add = false;
           }
@@ -267,16 +263,14 @@ impl Debugger {
         None
       },
       "tiles" => { // dump video tiles
-        match dump_tiles(&mut cpu.mem) {
-          Err(e) => error!("I/O error: {}", e),
-          _ => (),
+        if let Err(e) = dump_tiles(&mut cpu.mem) {
+          error!("I/O error: {}", e);
         }
         None
       },
       "bg" => { // dump video bg
-        match dump_bg(&mut cpu.mem) {
-          Err(e) => error!("I/O error: {}", e),
-          _ => (),
+        if let Err(e) = dump_bg(&mut cpu.mem) {
+          error!("I/O error: {}", e);
         }
         None
       },
@@ -296,10 +290,9 @@ impl Debugger {
         Ok(_) => {
           fn is_whitespace(c: char) -> bool { c.is_whitespace() }
           let is_whitespace: fn(char) -> bool = is_whitespace;
-          let words = line.split(is_whitespace).collect();
-          match self.dispatch(cpu, words) {
-            Some(command) => return command,
-            None => (),
+          let words = line.split(is_whitespace).collect::<Vec<_>>();
+          if let Some(command) = self.dispatch(cpu, &words) {
+            return command;
           }
         },
         Err(_) => {
@@ -313,7 +306,7 @@ impl Debugger {
     match self.breakpoints.iter().find(|&bp| *bp == cpu.regs.pc) {
       Some(&bp) => {
         println!("Breakpoint at ${:04X}", bp);
-        return true
+        true
       },
       None => false,
     }

@@ -108,7 +108,7 @@ impl VideoOut {
         video::SCREEN_WIDTH as u32,
         video::SCREEN_HEIGHT as u32).unwrap();
 
-    VideoOut { renderer: renderer, texture: texture }
+    VideoOut { renderer, texture }
   }
 
   fn blit_and_present(&mut self, pixels: &[u8]) {
@@ -148,7 +148,7 @@ enum State {
 
 fn main() {
   let args: Vec<_> = std::env::args().collect();
-  if args.len() != 2 && !(args.len() == 3 && args[1] == "-d".to_string()) {
+  if args.len() != 2 && !(args.len() == 3 && args[1] == "-d") {
     println!("Usage: {} [-d] rom.gb", args[0]);
     return;
   }
@@ -162,7 +162,7 @@ fn main() {
       &args[2]
     };
 
-  let mut cart = match cartridge::Cartridge::from_path(&Path::new(path)) {
+  let mut cart = match cartridge::Cartridge::from_path(Path::new(path)) {
     Ok(cart) => Box::new(cart),
     Err(e)   => panic!("I/O error: {}", e),
   };
@@ -181,7 +181,7 @@ fn main() {
   println!("Type: {}", cart.cartridge_type);
 
   let memmap = MemMap {
-    cart: cart,
+    cart,
     wram: ram::WorkRam::new(),
     timer: timer::Timer::new(),
     intr: interrupt::InterruptCtrl::new(),
@@ -227,18 +227,17 @@ fn main() {
     loop {
       let cycles = cpu.step();
 
-      match cpu.mem.timer.tick(cycles) {
-        Some(timer::Signal::TIMAOverflow) => cpu.mem.intr.irq(interrupt::IRQ_TIMER),
-        None => (),
+      if let Some(timer::Signal::TIMAOverflow) = cpu.mem.timer.tick(cycles) {
+        cpu.mem.intr.irq(interrupt::IRQ_TIMER);
       }
 
       let mut new_frame = false;
       let video_signals = cpu.mem.video.tick(cycles);
-      for signal in video_signals.iter() {
+      for signal in &video_signals {
         match *signal {
           video::Signal::DMA(base) => {
             // Do DMA transfer instantaneously
-            let base_addr = (base as u16) << 8;
+            let base_addr = u16::from(base) << 8;
             for offset in 0x00u16..0xa0u16 {
               let val = cpu.mem.loadb(base_addr + offset);
               cpu.mem.storeb(0xfe00 + offset, val);

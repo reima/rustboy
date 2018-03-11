@@ -5,7 +5,7 @@ use mem;
 //
 
 const DIV_CYCLE_SHIFT: usize = 8;
-const TIMA_CYCLE_SHIFT: &'static [u16] = &[
+const TIMA_CYCLE_SHIFT: &[u16] = &[
   10,  // =   4,096 Hz
   4,   // = 262,144 Hz
   6,   // =  65,536 Hz
@@ -39,14 +39,14 @@ impl Timer {
 
   pub fn tick(&mut self, cycles: u8) -> Option<Signal> {
     let mut result = None;
-    self.div_cycles = self.div_cycles.wrapping_add(cycles as u16);
+    self.div_cycles = self.div_cycles.wrapping_add(u16::from(cycles));
     if (self.tac & TIMER_START_FLAG) != 0 {
-      self.tima_cycles_mod += cycles as u16;
+      self.tima_cycles_mod += u16::from(cycles);
       let shift = TIMA_CYCLE_SHIFT[(self.tac & TIMER_INPUT_CLOCK_MASK) as usize];
       let increment = self.tima_cycles_mod >> shift;
       if increment != 0 {
         // TIMA must be incremented
-        if self.tima as u16 + increment > 0xff {
+        if u16::from(self.tima) + increment > 0xff {
           // Overflow, reset to TMA
           self.tima = self.tma;
           result = Some(Signal::TIMAOverflow);

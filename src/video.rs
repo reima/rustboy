@@ -215,12 +215,12 @@ impl Video {
   fn draw_bg_win_row(&mut self, screen_y: usize) {
     static WIN_OFFSET_X: usize = 7;
 
-    let mut tiles_base = TILES_BASE0;
-    let mut tiles_bias = TILES_BIAS0;
-    if (self.flags & FLAG_BG_WIN_TILES) != 0 {
-      tiles_base = TILES_BASE1;
-      tiles_bias = TILES_BIAS1;
-    }
+    let (tiles_base, tiles_bias) =
+      if (self.flags & FLAG_BG_WIN_TILES) == 0 {
+        (TILES_BASE0, TILES_BIAS0)
+      } else {
+        (TILES_BASE1, TILES_BIAS1)
+      };
 
     let bg_map_base =
       if (self.flags & FLAG_BG_MAP) == 0 {
@@ -242,19 +242,12 @@ impl Video {
     let win_map_y = screen_y.wrapping_sub(self.wy_saved as usize);
 
     for screen_x in 0usize..SCREEN_WIDTH {
-      let map_base;
-      let map_x;
-      let map_y;
-
-      if draw_win && screen_x + WIN_OFFSET_X >= self.wx as usize {
-        map_base = win_map_base;
-        map_x = screen_x + WIN_OFFSET_X - self.wx as usize;
-        map_y = win_map_y;
-      } else {
-        map_base = bg_map_base;
-        map_x = (screen_x + self.scx as usize) % (BG_WIDTH_TILES * TILE_WIDTH);
-        map_y = bg_map_y;
-      }
+      let (map_base, map_x, map_y) =
+        if draw_win && screen_x + WIN_OFFSET_X >= self.wx as usize {
+          (win_map_base, screen_x + WIN_OFFSET_X - self.wx as usize, win_map_y)
+        } else {
+          (bg_map_base, (screen_x + self.scx as usize) % (BG_WIDTH_TILES * TILE_WIDTH), bg_map_y)
+        };
 
       let pixel = &mut self.screen[((screen_y * SCREEN_WIDTH + screen_x) * 4)..];
       let map_tile_x = map_x / TILE_WIDTH;
@@ -297,7 +290,7 @@ impl Video {
     }
 
     // Early out when no objs in this row
-    if objs.len() == 0 {
+    if objs.is_empty() {
       return;
     }
 
@@ -309,7 +302,7 @@ impl Video {
     );
 
     // Draw objs
-    for obj in objs.iter() {
+    for obj in &objs {
       let obj_y        = self.oam[(*obj) * 4] as usize;
       let obj_x        = self.oam[(*obj) * 4 + 1] as usize;
       let mut obj_tile = self.oam[(*obj) * 4 + 2] as usize;
