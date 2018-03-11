@@ -1,8 +1,9 @@
 language: rust
 sudo: required
 dist: trusty
-install:
-  - sudo apt-get update -q
-  - sudo apt-get install libsdl2-dev -q -y
+addons:
+  apt:
+    packages:
+      - libsdl2-dev
 script:
   - cargo build -v
