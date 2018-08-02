@@ -642,7 +642,7 @@ impl<M: mem::Mem> Cpu<M> {
   fn addsp_(&mut self, rel: i8) -> u16 {
     let sp = self.regs.sp;
     let rel = rel as u16;
-    let result = sp + rel;
+    let result = sp.wrapping_add(rel);
     self.set_flag(ZERO_FLAG, false);
     self.set_flag(ADD_SUB_FLAG, false);
     self.set_flag(HALF_CARRY_FLAG, (((sp & 0xf) + (rel & 0xf)) & 0x10) != 0);
@@ -955,17 +955,17 @@ impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
 
     if self.get_flag(ADD_SUB_FLAG) {
       if self.get_flag(HALF_CARRY_FLAG) {
-        a = (a - 0x06) & 0xff;
+        a = a.wrapping_sub(0x06) & 0xff;
       }
       if self.get_flag(CARRY_FLAG) {
-        a -= 0x60;
+        a = a.wrapping_sub(0x60);
       }
     } else {
       if self.get_flag(HALF_CARRY_FLAG) || (a & 0xf) > 9 {
-        a += 0x06;
+        a = a.wrapping_add(0x06);
       }
       if self.get_flag(CARRY_FLAG) || a > 0x9f {
-        a += 0x60;
+        a = a.wrapping_add(0x60);
       }
     }
 
