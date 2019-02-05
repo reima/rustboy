@@ -113,7 +113,7 @@ impl VideoOut {
 
   fn blit_and_present(&mut self, pixels: &[u8]) {
     let _ = self.texture.update(None, pixels, video::SCREEN_WIDTH * 4);
-    self.renderer.copy(&self.texture, None, None);
+    self.renderer.copy(&self.texture, None, None).unwrap();
     self.renderer.present();
   }
 
