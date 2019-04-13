@@ -66,8 +66,8 @@ pub enum Reg8 {
 }
 
 impl Reg8 {
-    fn load<M: mem::Mem>(&self, cpu: &Cpu<M>) -> u8 {
-        match *self {
+    fn load<M: mem::Mem>(self, cpu: &Cpu<M>) -> u8 {
+        match self {
             Reg8::A => cpu.regs.a,
             Reg8::B => cpu.regs.b,
             Reg8::C => cpu.regs.c,
@@ -78,8 +78,8 @@ impl Reg8 {
         }
     }
 
-    fn store<M: mem::Mem>(&self, cpu: &mut Cpu<M>, val: u8) {
-        match *self {
+    fn store<M: mem::Mem>(self, cpu: &mut Cpu<M>, val: u8) {
+        match self {
             Reg8::A => cpu.regs.a = val,
             Reg8::B => cpu.regs.b = val,
             Reg8::C => cpu.regs.c = val,
@@ -102,8 +102,8 @@ pub enum Reg16 {
 }
 
 impl Reg16 {
-    fn load<M: mem::Mem>(&self, cpu: &Cpu<M>) -> u16 {
-        match *self {
+    fn load<M: mem::Mem>(self, cpu: &Cpu<M>) -> u16 {
+        match self {
             Reg16::AF => (u16::from(cpu.regs.a) << 8) | u16::from(cpu.regs.f),
             Reg16::BC => (u16::from(cpu.regs.b) << 8) | u16::from(cpu.regs.c),
             Reg16::DE => (u16::from(cpu.regs.d) << 8) | u16::from(cpu.regs.e),
@@ -113,8 +113,8 @@ impl Reg16 {
         }
     }
 
-    fn store<M: mem::Mem>(&self, cpu: &mut Cpu<M>, val: u16) {
-        match *self {
+    fn store<M: mem::Mem>(self, cpu: &mut Cpu<M>, val: u16) {
+        match self {
             Reg16::AF => {
                 cpu.regs.a = (val >> 8) as u8;
                 cpu.regs.f = val as u8 & 0xf0
@@ -150,9 +150,9 @@ pub enum Addr8 {
 }
 
 impl Addr8 {
-    fn cycles(&self) -> u8 {
+    fn cycles(self) -> u8 {
         // Every (byte) memory access costs 4 cycles
-        match *self {
+        match self {
             Addr8::Reg8Dir(_) => 0, // register access is "free"
             Addr8::Imm(_) | Addr8::Ind(_) | Addr8::Reg8Ind(_) => 4, // one memory access
             Addr8::Reg16Ind(_) | Addr8::Reg16IndInc(_) | Addr8::Reg16IndDec(_) => 8, // two memory accesses
@@ -160,8 +160,8 @@ impl Addr8 {
         }
     }
 
-    fn load<M: mem::Mem>(&self, cpu: &mut Cpu<M>) -> u8 {
-        match *self {
+    fn load<M: mem::Mem>(self, cpu: &mut Cpu<M>) -> u8 {
+        match self {
             Addr8::Imm(val) => val,
             Addr8::Ind(offset) => cpu.mem.loadb(0xff00 + u16::from(offset)),
             Addr8::Imm16Ind(addr) => cpu.mem.loadb(addr),
@@ -173,7 +173,7 @@ impl Addr8 {
             Addr8::Reg16Ind(r) | Addr8::Reg16IndInc(r) | Addr8::Reg16IndDec(r) => {
                 let addr = r.load(cpu);
                 let result = cpu.mem.loadb(addr);
-                match *self {
+                match self {
                     Addr8::Reg16IndInc(_) => r.store(cpu, addr + 1),
                     Addr8::Reg16IndDec(_) => r.store(cpu, addr - 1),
                     _ => (),
@@ -183,8 +183,8 @@ impl Addr8 {
         }
     }
 
-    fn store<M: mem::Mem>(&self, cpu: &mut Cpu<M>, val: u8) {
-        match *self {
+    fn store<M: mem::Mem>(self, cpu: &mut Cpu<M>, val: u8) {
+        match self {
             Addr8::Ind(offset) => cpu.mem.storeb(0xff00 + u16::from(offset), val),
             Addr8::Imm16Ind(addr) => cpu.mem.storeb(addr, val),
             Addr8::Reg8Dir(r) => r.store(cpu, val),
@@ -195,7 +195,7 @@ impl Addr8 {
             Addr8::Reg16Ind(r) | Addr8::Reg16IndInc(r) | Addr8::Reg16IndDec(r) => {
                 let addr = r.load(cpu);
                 cpu.mem.storeb(addr, val);
-                match *self {
+                match self {
                     Addr8::Reg16IndInc(_) => r.store(cpu, addr + 1),
                     Addr8::Reg16IndDec(_) => r.store(cpu, addr - 1),
                     _ => (),
@@ -214,25 +214,25 @@ pub enum Addr16 {
 }
 
 impl Addr16 {
-    fn cycles(&self) -> u8 {
+    fn cycles(self) -> u8 {
         // Every (byte) memory access costs 4 cycles
-        match *self {
+        match self {
             Addr16::Reg16Dir(_) => 0, // register access is "free"
             Addr16::Imm(_) => 8,      // two memory accesses
             Addr16::Ind(_) => 16,     // four memory accesses
         }
     }
 
-    fn load<M: mem::Mem>(&self, cpu: &mut Cpu<M>) -> u16 {
-        match *self {
+    fn load<M: mem::Mem>(self, cpu: &mut Cpu<M>) -> u16 {
+        match self {
             Addr16::Imm(val) => val,
             Addr16::Ind(addr) => cpu.mem.loadw(addr),
             Addr16::Reg16Dir(r) => r.load(cpu),
         }
     }
 
-    fn store<M: mem::Mem>(&self, cpu: &mut Cpu<M>, val: u16) {
-        match *self {
+    fn store<M: mem::Mem>(self, cpu: &mut Cpu<M>, val: u16) {
+        match self {
             Addr16::Ind(addr) => cpu.mem.storew(addr, val),
             Addr16::Reg16Dir(r) => r.store(cpu, val),
             _ => panic!("invalid addressing mode for 16-bit store"),
