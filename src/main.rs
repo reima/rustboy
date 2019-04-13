@@ -87,8 +87,9 @@ impl<'a> Mem for MemMap<'a> {
 //
 
 struct VideoOut {
-  renderer: sdl2::render::Renderer<'static>,
-  texture: sdl2::render::Texture,
+  renderer: Box<sdl2::render::WindowCanvas>,
+  texture: sdl2::render::Texture<'static>,
+  _texture_creator: sdl2::render::TextureCreator<sdl2::video::WindowContext>,
 }
 
 impl VideoOut {
@@ -101,24 +102,27 @@ impl VideoOut {
       .build()
       .unwrap();
 
-    let renderer = window.renderer().build().unwrap();
+    let renderer = window.into_canvas().build().unwrap();
 
-    let texture = renderer.create_texture_streaming(
+    let texture_creator = renderer.texture_creator();
+    let texture_creator_pointer = &texture_creator as *const sdl2::render::TextureCreator<sdl2::video::WindowContext>;
+
+    let texture = unsafe { &*texture_creator_pointer }.create_texture_streaming(
         sdl2::pixels::PixelFormatEnum::ARGB8888,
         video::SCREEN_WIDTH as u32,
         video::SCREEN_HEIGHT as u32).unwrap();
 
-    VideoOut { renderer, texture }
+    VideoOut { renderer: Box::new(renderer), texture, _texture_creator: texture_creator }
   }
 
   fn blit_and_present(&mut self, pixels: &[u8]) {
     let _ = self.texture.update(None, pixels, video::SCREEN_WIDTH * 4);
-    self.renderer.copy(&self.texture, None, None).unwrap();
+    let _ = self.renderer.copy(&self.texture, None, None);
     self.renderer.present();
   }
 
   fn set_title(&mut self, title: &str) {
-    self.renderer.window_mut().unwrap().set_title(title).unwrap();
+    self.renderer.window_mut().set_title(title).unwrap();
   }
 }
 
