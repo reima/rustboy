@@ -4,7 +4,6 @@ extern crate log;
 extern crate sdl2;
 
 use mem::Mem;
-use std::io::stdout;
 use std::path::Path;
 
 mod cartridge;
@@ -199,7 +198,7 @@ fn main() {
         intr: interrupt::InterruptCtrl::new(),
         sound: sound::Sound,
         video: video::Video::new(),
-        serial: serial::SerialIO::new(Some(Box::new(stdout()))),
+        serial: serial::SerialIO::new(None),
         joypad: joypad::Joypad::new(),
         dummy: Dummy,
     };
