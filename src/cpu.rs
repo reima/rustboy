@@ -504,24 +504,24 @@ pub fn decode<R, D: Decoder<R>>(d: &mut D) -> R {
         0x3f => d.ccf(),
 
         // 0x40-0x70
-        0x40...0x75 | 0x77...0x7f => d.ld8(decode_addr(opcode >> 3), decode_addr(opcode)),
+        0x40..=0x75 | 0x77..=0x7f => d.ld8(decode_addr(opcode >> 3), decode_addr(opcode)),
         0x76 => d.halt(),
 
         // 0x80
-        0x80...0x87 => d.add8(decode_addr(opcode)),
-        0x88...0x8f => d.adc(decode_addr(opcode)),
+        0x80..=0x87 => d.add8(decode_addr(opcode)),
+        0x88..=0x8f => d.adc(decode_addr(opcode)),
 
         // 0x90
-        0x90...0x97 => d.sub(decode_addr(opcode)),
-        0x98...0x9f => d.sbc(decode_addr(opcode)),
+        0x90..=0x97 => d.sub(decode_addr(opcode)),
+        0x98..=0x9f => d.sbc(decode_addr(opcode)),
 
         // 0xa0
-        0xa0...0xa7 => d.and(decode_addr(opcode)),
-        0xa8...0xaf => d.xor(decode_addr(opcode)),
+        0xa0..=0xa7 => d.and(decode_addr(opcode)),
+        0xa8..=0xaf => d.xor(decode_addr(opcode)),
 
         // 0xb0
-        0xb0...0xb7 => d.or(decode_addr(opcode)),
-        0xb8...0xbf => d.cp(decode_addr(opcode)),
+        0xb0..=0xb7 => d.or(decode_addr(opcode)),
+        0xb8..=0xbf => d.cp(decode_addr(opcode)),
 
         // 0xc0
         0xc0 => d.ret(Cond::NZ),
@@ -564,9 +564,9 @@ pub fn decode<R, D: Decoder<R>>(d: &mut D) -> R {
                 0x28 => d.sra(addr),
                 0x30 => d.swap(addr),
                 0x38 => d.srl(addr),
-                0x40...0x78 => d.bit((extra >> 3) & 0b111, addr),
-                0x80...0xb8 => d.res((extra >> 3) & 0b111, addr),
-                0xc0...0xf8 => d.set((extra >> 3) & 0b111, addr),
+                0x40..=0x78 => d.bit((extra >> 3) & 0b111, addr),
+                0x80..=0xb8 => d.res((extra >> 3) & 0b111, addr),
+                0xc0..=0xf8 => d.set((extra >> 3) & 0b111, addr),
                 _ => panic!("logic error"),
             }
         }

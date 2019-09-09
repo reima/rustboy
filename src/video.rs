@@ -132,8 +132,8 @@ impl Video {
 
         self.mode = if self.ly < SCREEN_HEIGHT as u8 {
             match self.cycles % ROW_CYCLES {
-                MODE2_START...MODE2_END => 2,
-                MODE3_START...MODE3_END => 3,
+                MODE2_START..=MODE2_END => 2,
+                MODE3_START..=MODE3_END => 3,
                 _ => 0,
             }
         } else {
@@ -360,8 +360,8 @@ impl Video {
 impl mem::Mem for Video {
     fn loadb(&mut self, addr: u16) -> u8 {
         match addr {
-            0x8000...0x9fff => self.vram[(addr - 0x8000) as usize],
-            0xfe00...0xfe9f => self.oam[(addr - 0xfe00) as usize], // OAM
+            0x8000..=0x9fff => self.vram[(addr - 0x8000) as usize],
+            0xfe00..=0xfe9f => self.oam[(addr - 0xfe00) as usize], // OAM
 
             // I/O registers
             0xff40 => self.flags,
@@ -382,8 +382,8 @@ impl mem::Mem for Video {
 
     fn storeb(&mut self, addr: u16, val: u8) {
         match addr {
-            0x8000...0x9fff => self.vram[(addr - 0x8000) as usize] = val,
-            0xfe00...0xfe9f => self.oam[(addr - 0xfe00) as usize] = val,
+            0x8000..=0x9fff => self.vram[(addr - 0x8000) as usize] = val,
+            0xfe00..=0xfe9f => self.oam[(addr - 0xfe00) as usize] = val,
 
             // I/O registers
             0xff40 => self.flags = val,
