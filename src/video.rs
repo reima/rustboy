@@ -408,7 +408,7 @@ impl mem::Mem for Video {
 }
 
 fn unpack_tile_pixel(tile: &[u8], palette: u8, x: usize, y: usize, pixel: &mut [u8], transp: bool) {
-    static COLORS: &'static [&'static [u8]] = &[
+    static COLORS: &[&[u8]] = &[
         &[224, 248, 208],
         &[136, 192, 112],
         &[52, 104, 86],

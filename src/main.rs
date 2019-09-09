@@ -318,9 +318,8 @@ fn main() {
                 },
                 Event::KeyUp {
                     keycode: Some(key), ..
-                } => match keymap(key) {
-                    Some(button) => cpu.mem.joypad.set_button(button, false),
-                    None => (),
+                } => if let Some(button) = keymap(key) {
+                    cpu.mem.joypad.set_button(button, false)
                 },
                 _ => (),
             }
