@@ -30,8 +30,8 @@ impl Cartridge {
         use std::str;
 
         let mut header = [0u8; 80];
-        try!(file.seek(SeekFrom::Start(HEADER_OFFSET)));
-        try!(file.read_exact(&mut header));
+        file.seek(SeekFrom::Start(HEADER_OFFSET))?;
+        file.read_exact(&mut header)?;
 
         let title = str::from_utf8(&header[0x34..0x43]).unwrap().to_string();
 
@@ -52,11 +52,11 @@ impl Cartridge {
         };
         let mut rom_banks = Vec::with_capacity(rom_bank_count);
 
-        try!(file.seek(SeekFrom::Start(0)));
+        file.seek(SeekFrom::Start(0))?;
 
         for _ in 0..rom_bank_count {
             let mut bank = [0u8; ROM_BANK_SIZE];
-            try!(file.read_exact(&mut bank));
+            file.read_exact(&mut bank)?;
             rom_banks.push(bank);
         }
 

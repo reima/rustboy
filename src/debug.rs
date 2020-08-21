@@ -89,8 +89,8 @@ fn expand_tile_row(tile: &[u8], palette: u8, row: usize, pixels: &mut [u8]) {
 
 fn write_pgm(path: &Path, width: usize, height: usize, data: &[u8]) -> Result<()> {
     let mut output = File::create(path).unwrap();
-    try!(write!(&mut output, "P5\n{} {}\n3\n", width, height));
-    try!(output.write_all(data));
+    write!(&mut output, "P5\n{} {}\n3\n", width, height)?;
+    output.write_all(data)?;
 
     Ok(())
 }
