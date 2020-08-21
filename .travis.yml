@@ -1,6 +1,6 @@
 language: rust
-sudo: required
-dist: trusty
+os: linux
+dist: bionic
 addons:
   apt:
     packages:
