@@ -1,4 +1,4 @@
-use mem;
+use crate::mem;
 
 //
 // Statics
@@ -274,13 +274,13 @@ pub trait Decoder<R> {
     fn stop(&mut self, val: u8) -> R;
 
     // Jump/call
-    fn jp(&mut self, Cond, addr: Addr16) -> R;
-    fn jr(&mut self, Cond, rel: i8) -> R;
+    fn jp(&mut self, cond: Cond, addr: Addr16) -> R;
+    fn jr(&mut self, cond: Cond, rel: i8) -> R;
 
-    fn call(&mut self, Cond, addr: Addr16) -> R;
+    fn call(&mut self, cond: Cond, addr: Addr16) -> R;
     fn rst(&mut self, addr: u8) -> R;
 
-    fn ret(&mut self, Cond) -> R;
+    fn ret(&mut self, cond: Cond) -> R;
     fn reti(&mut self) -> R;
 
     // Load/store/move

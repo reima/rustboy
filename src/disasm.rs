@@ -1,5 +1,5 @@
-use cpu::{Addr16, Addr8, Cond, Decoder};
-use mem;
+use crate::cpu::{Addr16, Addr8, Cond, Decoder};
+use crate::mem;
 
 pub struct Disasm<'a, M: 'a> {
     pub mem: &'a mut M,

@@ -1,6 +1,6 @@
-use cpu;
-use disasm;
-use mem::Mem;
+use crate::cpu;
+use crate::disasm;
+use crate::mem::Mem;
 use std::fs::File;
 use std::io::{stdin, stdout, Result, Write};
 use std::path::Path;

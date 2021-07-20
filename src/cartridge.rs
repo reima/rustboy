@@ -1,4 +1,4 @@
-use mem::Mem;
+use crate::mem::Mem;
 use std::cmp;
 use std::fs::File;
 use std::io::{Read, Result, Seek, SeekFrom};
