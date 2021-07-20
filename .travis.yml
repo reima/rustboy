@@ -4,3 +4,8 @@ addons:
   apt:
     packages:
       - libsdl2-dev
+before_script:
+  - rustup component add clippy
+script:
+  - cargo clippy
+  - cargo build --verbose

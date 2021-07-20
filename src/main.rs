@@ -1,3 +1,5 @@
+#![allow(clippy::needless_range_loop)]
+
 #[macro_use]
 extern crate log;
 
@@ -311,16 +313,19 @@ fn main() {
                     keycode: Some(key), ..
                 } => match keymap(key) {
                     Some(button) => cpu.mem.joypad.set_button(button, true),
-                    None => match key {
-                        sdl2::keyboard::Keycode::Escape => state = State::Paused,
-                        _ => (),
-                    },
+                    None => {
+                        if key == sdl2::keyboard::Keycode::Escape {
+                            state = State::Paused;
+                        }
+                    }
                 },
                 Event::KeyUp {
                     keycode: Some(key), ..
-                } => if let Some(button) = keymap(key) {
-                    cpu.mem.joypad.set_button(button, false)
-                },
+                } => {
+                    if let Some(button) = keymap(key) {
+                        cpu.mem.joypad.set_button(button, false)
+                    }
+                }
                 _ => (),
             }
         }

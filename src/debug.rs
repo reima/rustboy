@@ -202,7 +202,7 @@ impl Debugger {
     fn add_breakpoint(&mut self, addr: u16) {
         if !self.breakpoints.contains(&addr) {
             self.breakpoints.push(addr);
-            self.breakpoints.sort();
+            self.breakpoints.sort_unstable();
             println!("Breakpoint ${:04X} added", addr);
         } else {
             println!("Breakpoint ${:04X} already exists", addr);
