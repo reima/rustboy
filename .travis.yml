@@ -1,9 +1,6 @@
 language: rust
-os: linux
-dist: bionic
+dist: focal
 addons:
   apt:
     packages:
       - libsdl2-dev
-script:
-  - cargo build -v
