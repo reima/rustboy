@@ -9,14 +9,14 @@ use std::path::Path;
 // Debugger
 //
 
-fn disasm<M: Mem>(mem: &mut M, addr: &mut u16) -> String {
+fn disasm<M: Mem>(mem: &M, addr: &mut u16) -> String {
     let mut d = disasm::Disasm { mem, pc: *addr };
     let result = cpu::decode(&mut d);
     *addr = d.pc;
     result
 }
 
-fn disassemble<M: Mem>(mem: &mut M, addr: u16) {
+fn disassemble<M: Mem>(mem: &M, addr: u16) {
     let mut pc = addr;
 
     for _ in 0usize..5usize {
@@ -31,7 +31,7 @@ fn disassemble<M: Mem>(mem: &mut M, addr: u16) {
     }
 }
 
-fn print_mem<M: Mem>(mem: &mut M, addr: u16) {
+fn print_mem<M: Mem>(mem: &M, addr: u16) {
     println!("\t  0  1  2  3  4  5  6  7   8  9  A  B  C  D  E  F");
 
     let mut base = addr & 0xfff0;
@@ -95,7 +95,7 @@ fn write_pgm(path: &Path, width: usize, height: usize, data: &[u8]) -> Result<()
     Ok(())
 }
 
-fn dump_tiles<M: Mem>(m: &mut M) -> Result<()> {
+fn dump_tiles<M: Mem>(m: &M) -> Result<()> {
     let mut data = [0u8; 16 * 24 * 8 * 8];
 
     for num in 0usize..384usize {
@@ -114,7 +114,7 @@ fn dump_tiles<M: Mem>(m: &mut M) -> Result<()> {
     write_pgm(Path::new("tiles.pgm"), 16 * 8, 24 * 8, &data)
 }
 
-fn dump_bg<M: Mem>(m: &mut M) -> Result<()> {
+fn dump_bg<M: Mem>(m: &M) -> Result<()> {
     let mut tile_base = 0x8800;
     let mut tile_bias = 128u8;
     let mut map_base = 0x9800;
@@ -218,11 +218,7 @@ impl Debugger {
         }
     }
 
-    fn dispatch<M: Mem>(
-        &mut self,
-        cpu: &mut cpu::Cpu<M>,
-        words: &[&str],
-    ) -> Option<DebuggerCommand> {
+    fn dispatch<M: Mem>(&mut self, cpu: &cpu::Cpu<M>, words: &[&str]) -> Option<DebuggerCommand> {
         if words.is_empty() {
             return None;
         }
@@ -240,7 +236,7 @@ impl Debugger {
                 // print memory
                 if words.len() >= 2 {
                     match parse_addr(words[1]) {
-                        Some(addr) => print_mem(&mut cpu.mem, addr),
+                        Some(addr) => print_mem(&cpu.mem, addr),
                         None => error!("Invalid address: {}", words[1]),
                     }
                 }
@@ -255,7 +251,7 @@ impl Debugger {
                         None => error!("Invalid address: {}", words[1]),
                     }
                 }
-                disassemble(&mut cpu.mem, addr);
+                disassemble(&cpu.mem, addr);
                 None
             }
             "b" => {
@@ -285,14 +281,14 @@ impl Debugger {
             }
             "tiles" => {
                 // dump video tiles
-                if let Err(e) = dump_tiles(&mut cpu.mem) {
+                if let Err(e) = dump_tiles(&cpu.mem) {
                     error!("I/O error: {}", e);
                 }
                 None
             }
             "bg" => {
                 // dump video bg
-                if let Err(e) = dump_bg(&mut cpu.mem) {
+                if let Err(e) = dump_bg(&cpu.mem) {
                     error!("I/O error: {}", e);
                 }
                 None
@@ -304,7 +300,7 @@ impl Debugger {
         }
     }
 
-    pub fn prompt<M: Mem>(&mut self, cpu: &mut cpu::Cpu<M>) -> DebuggerCommand {
+    pub fn prompt<M: Mem>(&mut self, cpu: &cpu::Cpu<M>) -> DebuggerCommand {
         loop {
             print!("> ");
             stdout().flush().unwrap();

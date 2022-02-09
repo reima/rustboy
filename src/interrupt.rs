@@ -28,7 +28,7 @@ impl InterruptCtrl {
 }
 
 impl mem::Mem for InterruptCtrl {
-    fn loadb(&mut self, addr: u16) -> u8 {
+    fn loadb(&self, addr: u16) -> u8 {
         match addr {
             0xff0f => self.flag,
             0xffff => self.enable,

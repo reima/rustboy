@@ -5,7 +5,6 @@ extern crate log;
 
 extern crate sdl2;
 
-use mem::Mem;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
@@ -13,6 +12,7 @@ mod cartridge;
 mod cpu;
 mod debug;
 mod disasm;
+mod gameboy;
 mod interrupt;
 mod joypad;
 mod mem;
@@ -21,67 +21,6 @@ mod serial;
 mod sound;
 mod timer;
 mod video;
-
-//
-// Memory Map
-//
-
-struct Dummy;
-impl Mem for Dummy {
-    fn loadb(&mut self, _: u16) -> u8 {
-        //debug!("load in unmapped memory at 0x{:04X}", addr);
-        0xff
-    }
-
-    fn storeb(&mut self, _: u16, _: u8) {
-        //debug!("store in unmapped memory at 0x{:04X}", addr);
-    }
-}
-
-struct MemMap<'a> {
-    cart: Box<cartridge::Cartridge>,
-    wram: ram::WorkRam,
-    timer: timer::Timer,
-    intr: interrupt::InterruptCtrl,
-    sound: sound::Sound,
-    video: video::Video,
-    serial: serial::SerialIO<'a>,
-    joypad: joypad::Joypad,
-    dummy: Dummy,
-}
-
-impl<'a> MemMap<'a> {
-    fn mem_from_addr(&mut self, addr: u16) -> &mut dyn Mem {
-        match addr {
-      0x0000..=0x7fff | // ROM banks
-      0xa000..=0xbfff   // External RAM
-                       => &mut *self.cart as &mut dyn Mem,
-      0x8000..=0x9fff | // VRAM
-      0xfe00..=0xfe9f | // OAM
-      0xff40..=0xff4b   // Video I/O
-                       => &mut self.video as &mut dyn Mem,
-      0xc000..=0xfdff | // WRAM (including echo area 0xe000-0xfdff)
-      0xff80..=0xfffe   // HRAM
-                       => &mut self.wram as &mut dyn Mem,
-      0xff00           => &mut self.joypad as &mut dyn Mem,
-      0xff01..=0xff02  => &mut self.serial as &mut dyn Mem,
-      0xff04..=0xff07  => &mut self.timer as &mut dyn Mem,
-      0xff0f | 0xffff  => &mut self.intr as &mut dyn Mem,
-      0xff10..=0xff3f  => &mut self.sound as &mut dyn Mem,
-      _ => &mut self.dummy as &mut dyn Mem,
-    }
-    }
-}
-
-impl<'a> Mem for MemMap<'a> {
-    fn loadb(&mut self, addr: u16) -> u8 {
-        self.mem_from_addr(addr).loadb(addr)
-    }
-
-    fn storeb(&mut self, addr: u16, val: u8) {
-        self.mem_from_addr(addr).storeb(addr, val)
-    }
-}
 
 //
 // Video Output
@@ -174,14 +113,14 @@ fn main() {
     };
 
     let mut cart = match cartridge::Cartridge::from_path(Path::new(path)) {
-        Ok(cart) => Box::new(cart),
+        Ok(cart) => cart,
         Err(e) => panic!("I/O error: {}", e),
     };
 
     if disassemble {
         // Disassemble only
         let mut d = disasm::Disasm {
-            mem: &mut *cart,
+            mem: &mut cart,
             pc: 0,
         };
         while d.pc <= 0x7fff {
@@ -194,19 +133,7 @@ fn main() {
     println!("Name: {}", cart.title);
     println!("Type: {}", cart.cartridge_type);
 
-    let memmap = MemMap {
-        cart,
-        wram: ram::WorkRam::new(),
-        timer: timer::Timer::new(),
-        intr: interrupt::InterruptCtrl::new(),
-        sound: sound::Sound,
-        video: video::Video::new(),
-        serial: serial::SerialIO::new(None),
-        joypad: joypad::Joypad::new(),
-        dummy: Dummy,
-    };
-    let mut cpu = cpu::Cpu::new(memmap);
-    cpu.regs.pc = 0x100;
+    let mut gameboy = gameboy::GameBoy::new(cart);
 
     let sdl_context = sdl2::init().unwrap();
     let sdl_video = sdl_context.video().unwrap();
@@ -229,8 +156,9 @@ fn main() {
     println!("f: {:?}", frame_duration);
 
     while state != State::Done {
+        // Debugger
         if state == State::Paused || state == State::Step {
-            match debugger.prompt(&mut cpu) {
+            match debugger.prompt(gameboy.cpu()) {
                 debug::DebuggerCommand::Quit => break,
                 debug::DebuggerCommand::Run => state = State::Running,
                 debug::DebuggerCommand::Step => state = State::Step,
@@ -238,66 +166,40 @@ fn main() {
         }
 
         // Emulation loop
+        let mut new_frame;
         loop {
-            let cycles = cpu.step();
+            new_frame = gameboy.step();
 
-            if let Some(timer::Signal::TIMAOverflow) = cpu.mem.timer.tick(cycles) {
-                cpu.mem.intr.irq(interrupt::IRQ_TIMER);
-            }
-
-            let mut new_frame = false;
-            let video_signals = cpu.mem.video.tick(cycles);
-            for signal in &video_signals {
-                match *signal {
-                    video::Signal::Dma(base) => {
-                        // Do DMA transfer instantaneously
-                        let base_addr = u16::from(base) << 8;
-                        for offset in 0x00u16..0xa0u16 {
-                            let val = cpu.mem.loadb(base_addr + offset);
-                            cpu.mem.storeb(0xfe00 + offset, val);
-                        }
-                    }
-                    video::Signal::VBlank => {
-                        video_out.blit_and_present(&cpu.mem.video.screen);
-                        cpu.mem.intr.irq(interrupt::IRQ_VBLANK);
-                        new_frame = true;
-                    }
-                    video::Signal::Lcd => cpu.mem.intr.irq(interrupt::IRQ_LCD),
-                }
-            }
-
-            // Synchronize speed based on frame time
-            if new_frame {
-                let now = Instant::now();
-                let frame_time = now - last_frame_start;
-                if frame_time < frame_duration {
-                    let delay_msec = (frame_duration - frame_time).as_millis();
-                    sdl_timer.delay(delay_msec as u32);
-                }
-                // TODO: What should we do when we take longer than frame_duration?
-                last_frame_start = Instant::now();
-
-                frames += 1;
-                let time_since_last_fps_update = last_frame_start - last_fps_update;
-                if time_since_last_fps_update > Duration::from_secs(1) {
-                    let fps = frames as f64 / (time_since_last_fps_update).as_secs_f64();
-                    video_out.set_title(format!("Rustboy - {:.02} fps", fps).as_ref());
-                    last_fps_update = now;
-                    frames = 0;
-                }
-
-                // Exit emulation loop to handle events
-                break;
-            }
-
-            if debugger.should_break(&cpu) {
+            if debugger.should_break(gameboy.cpu()) {
                 state = State::Paused;
                 break;
             }
 
-            if state == State::Step {
-                // Stop emulation loop after one instruction
+            if new_frame || state == State::Step {
                 break;
+            }
+        }
+
+        if new_frame {
+            video_out.blit_and_present(gameboy.pixels());
+
+            // Synchronize speed based on frame time
+            let now = Instant::now();
+            let frame_time = now - last_frame_start;
+            if frame_time < frame_duration {
+                let delay_msec = (frame_duration - frame_time).as_millis();
+                sdl_timer.delay(delay_msec as u32);
+            }
+            // TODO: What should we do when we take longer than frame_duration?
+            last_frame_start = Instant::now();
+
+            frames += 1;
+            let time_since_last_fps_update = last_frame_start - last_fps_update;
+            if time_since_last_fps_update > Duration::from_secs(1) {
+                let fps = frames as f64 / (time_since_last_fps_update).as_secs_f64();
+                video_out.set_title(format!("Rustboy - {:.02} fps", fps).as_ref());
+                last_fps_update = now;
+                frames = 0;
             }
         }
 
@@ -313,7 +215,7 @@ fn main() {
                 Event::KeyDown {
                     keycode: Some(key), ..
                 } => match keymap(key) {
-                    Some(button) => cpu.mem.joypad.set_button(button, true),
+                    Some(button) => gameboy.set_button(button, true),
                     None => {
                         if key == sdl2::keyboard::Keycode::Escape {
                             state = State::Paused;
@@ -324,7 +226,7 @@ fn main() {
                     keycode: Some(key), ..
                 } => {
                     if let Some(button) = keymap(key) {
-                        cpu.mem.joypad.set_button(button, false)
+                        gameboy.set_button(button, false)
                     }
                 }
                 _ => (),

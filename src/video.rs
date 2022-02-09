@@ -358,7 +358,7 @@ impl Video {
 }
 
 impl mem::Mem for Video {
-    fn loadb(&mut self, addr: u16) -> u8 {
+    fn loadb(&self, addr: u16) -> u8 {
         match addr {
             0x8000..=0x9fff => self.vram[(addr - 0x8000) as usize],
             0xfe00..=0xfe9f => self.oam[(addr - 0xfe00) as usize], // OAM

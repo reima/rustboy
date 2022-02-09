@@ -2,7 +2,7 @@ use crate::cpu::{Addr16, Addr8, Cond, Decoder};
 use crate::mem;
 
 pub struct Disasm<'a, M: 'a> {
-    pub mem: &'a mut M,
+    pub mem: &'a M,
     pub pc: u16,
 }
 

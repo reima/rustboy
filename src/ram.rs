@@ -26,7 +26,7 @@ fn internal_addr(addr: u16) -> u16 {
 }
 
 impl mem::Mem for WorkRam {
-    fn loadb(&mut self, addr: u16) -> u8 {
+    fn loadb(&self, addr: u16) -> u8 {
         self.data[internal_addr(addr) as usize]
     }
 

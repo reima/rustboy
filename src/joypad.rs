@@ -92,7 +92,7 @@ impl Joypad {
 }
 
 impl mem::Mem for Joypad {
-    fn loadb(&mut self, addr: u16) -> u8 {
+    fn loadb(&self, addr: u16) -> u8 {
         if addr != 0xff00 {
             panic!("invalid joypad register");
         }

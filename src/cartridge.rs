@@ -80,7 +80,7 @@ impl Cartridge {
 }
 
 impl Mem for Cartridge {
-    fn loadb(&mut self, addr: u16) -> u8 {
+    fn loadb(&self, addr: u16) -> u8 {
         match addr {
             0x0000..=0x3fff => self.rom_banks[0].loadb(addr),
             0x4000..=0x7fff => self.rom_banks[self.rom_bank as usize].loadb(addr - 0x4000),

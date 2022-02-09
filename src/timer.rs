@@ -66,7 +66,7 @@ impl Timer {
 }
 
 impl mem::Mem for Timer {
-    fn loadb(&mut self, addr: u16) -> u8 {
+    fn loadb(&self, addr: u16) -> u8 {
         match addr {
             0xff04 => (self.div_cycles >> DIV_CYCLE_SHIFT) as u8, // DIV register
             0xff05 => self.tima,                                  // TIMA register
