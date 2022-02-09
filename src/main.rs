@@ -7,6 +7,7 @@ extern crate sdl2;
 
 use mem::Mem;
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 mod cartridge;
 mod cpu;
@@ -218,15 +219,14 @@ fn main() {
     let mut state = State::Paused;
     let mut debugger = debug::Debugger::new();
 
-    let counts_per_sec = sdl_timer.performance_frequency();
-    let counts_per_frame =
-        counts_per_sec * video::SCREEN_REFRESH_CYCLES as u64 / cpu::CYCLES_PER_SEC as u64;
-    let mut last_frame_start_count = sdl_timer.performance_counter();
+    let frame_duration =
+        Duration::from_secs_f64(video::SCREEN_REFRESH_CYCLES as f64 / cpu::CYCLES_PER_SEC as f64);
+    let mut last_frame_start = Instant::now();
 
-    let mut last_fps_update = last_frame_start_count;
+    let mut last_fps_update = last_frame_start;
     let mut frames = 0;
 
-    println!("c/s: {}; c/f: {}", counts_per_sec, counts_per_frame);
+    println!("f: {:?}", frame_duration);
 
     while state != State::Done {
         if state == State::Paused || state == State::Step {
@@ -268,19 +268,20 @@ fn main() {
 
             // Synchronize speed based on frame time
             if new_frame {
-                let now = sdl_timer.performance_counter();
-                let frame_time = now - last_frame_start_count;
-                if frame_time < counts_per_frame {
-                    let delay_msec = 1_000 * (counts_per_frame - frame_time) / counts_per_sec;
+                let now = Instant::now();
+                let frame_time = now - last_frame_start;
+                if frame_time < frame_duration {
+                    let delay_msec = (frame_duration - frame_time).as_millis();
                     sdl_timer.delay(delay_msec as u32);
                 }
-                // TODO: What should we do when we take longer than counts_per_frame?
-                last_frame_start_count = sdl_timer.performance_counter();
+                // TODO: What should we do when we take longer than frame_duration?
+                last_frame_start = Instant::now();
 
                 frames += 1;
-                if last_frame_start_count - last_fps_update > counts_per_sec {
-                    let fps = frames * (last_frame_start_count - last_fps_update) / counts_per_sec;
-                    video_out.set_title(format!("Rustboy - {} fps", fps).as_ref());
+                let time_since_last_fps_update = last_frame_start - last_fps_update;
+                if time_since_last_fps_update > Duration::from_secs(1) {
+                    let fps = frames as f64 / (time_since_last_fps_update).as_secs_f64();
+                    video_out.set_title(format!("Rustboy - {:.02} fps", fps).as_ref());
                     last_fps_update = now;
                     frames = 0;
                 }
