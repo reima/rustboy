@@ -249,7 +249,7 @@ fn main() {
             let video_signals = cpu.mem.video.tick(cycles);
             for signal in &video_signals {
                 match *signal {
-                    video::Signal::DMA(base) => {
+                    video::Signal::Dma(base) => {
                         // Do DMA transfer instantaneously
                         let base_addr = u16::from(base) << 8;
                         for offset in 0x00u16..0xa0u16 {
@@ -262,7 +262,7 @@ fn main() {
                         cpu.mem.intr.irq(interrupt::IRQ_VBLANK);
                         new_frame = true;
                     }
-                    video::Signal::LCD => cpu.mem.intr.irq(interrupt::IRQ_LCD),
+                    video::Signal::Lcd => cpu.mem.intr.irq(interrupt::IRQ_LCD),
                 }
             }
 

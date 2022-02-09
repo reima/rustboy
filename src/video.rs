@@ -93,8 +93,8 @@ pub struct Video {
 
 pub enum Signal {
     VBlank,
-    LCD,
-    DMA(u8),
+    Lcd,
+    Dma(u8),
 }
 
 impl Video {
@@ -143,7 +143,7 @@ impl Video {
         self.update_stat();
 
         if self.dma != 0xff {
-            signals.push(Signal::DMA(self.dma));
+            signals.push(Signal::Dma(self.dma));
             self.dma = 0xff;
         }
 
@@ -195,7 +195,7 @@ impl Video {
         }
 
         if lcd_intr {
-            signals.push(Signal::LCD);
+            signals.push(Signal::Lcd);
         }
 
         signals
