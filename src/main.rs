@@ -3,10 +3,15 @@
 #[macro_use]
 extern crate log;
 
-extern crate sdl2;
-
+use pixels::{wgpu::TextureFormat, Pixels, PixelsBuilder, SurfaceTexture};
 use std::path::Path;
 use std::time::{Duration, Instant};
+use winit::{
+    dpi::LogicalSize,
+    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    window::{Window, WindowBuilder},
+};
 
 mod cartridge;
 mod cpu;
@@ -27,64 +32,62 @@ mod video;
 //
 
 struct VideoOut {
-    renderer: Box<sdl2::render::WindowCanvas>,
-    texture: sdl2::render::Texture<'static>,
-    _texture_creator: sdl2::render::TextureCreator<sdl2::video::WindowContext>,
+    window: Window,
+    pixels: Pixels,
 }
 
 impl VideoOut {
-    fn new(sdl_video: &sdl2::VideoSubsystem, scale: u32) -> VideoOut {
+    fn new(event_loop: &EventLoop<()>, scale: u32) -> VideoOut {
         let window_width = video::SCREEN_WIDTH as u32 * scale;
         let window_height = video::SCREEN_HEIGHT as u32 * scale;
 
-        let window = sdl_video
-            .window("rustboy", window_width, window_height)
-            .position_centered()
-            .build()
+        let size = LogicalSize::new(window_width, window_height);
+
+        let window = WindowBuilder::new()
+            .with_inner_size(size)
+            .with_resizable(false)
+            .build(event_loop)
             .unwrap();
 
-        let renderer = window.into_canvas().build().unwrap();
+        let size = window.inner_size();
+        let texture = SurfaceTexture::new(size.width, size.height, &window);
 
-        let texture_creator = renderer.texture_creator();
-        let texture_creator_pointer =
-            &texture_creator as *const sdl2::render::TextureCreator<sdl2::video::WindowContext>;
-
-        let texture = unsafe { &*texture_creator_pointer }
-            .create_texture_streaming(
-                sdl2::pixels::PixelFormatEnum::ARGB8888,
-                video::SCREEN_WIDTH as u32,
-                video::SCREEN_HEIGHT as u32,
-            )
-            .unwrap();
-
-        VideoOut {
-            renderer: Box::new(renderer),
+        let pixels = PixelsBuilder::new(
+            video::SCREEN_WIDTH as u32,
+            video::SCREEN_HEIGHT as u32,
             texture,
-            _texture_creator: texture_creator,
-        }
+        )
+        .texture_format(TextureFormat::Bgra8UnormSrgb)
+        .enable_vsync(false)
+        .build()
+        .unwrap();
+
+        VideoOut { window, pixels }
     }
 
-    fn blit_and_present(&mut self, pixels: &[u8]) {
-        let _ = self.texture.update(None, pixels, video::SCREEN_WIDTH * 4);
-        let _ = self.renderer.copy(&self.texture, None, None);
-        self.renderer.present();
+    fn blit(&mut self, pixels: &[u8]) {
+        self.pixels.get_frame().copy_from_slice(pixels);
+    }
+
+    fn render(&mut self) {
+        self.pixels.render().unwrap();
     }
 
     fn set_title(&mut self, title: &str) {
-        self.renderer.window_mut().set_title(title).unwrap();
+        self.window.set_title(title);
     }
 }
 
-fn keymap(code: sdl2::keyboard::Keycode) -> Option<joypad::Button> {
+fn keymap(code: VirtualKeyCode) -> Option<joypad::Button> {
     match code {
-        sdl2::keyboard::Keycode::Up => Some(joypad::Button::Up),
-        sdl2::keyboard::Keycode::Down => Some(joypad::Button::Down),
-        sdl2::keyboard::Keycode::Left => Some(joypad::Button::Left),
-        sdl2::keyboard::Keycode::Right => Some(joypad::Button::Right),
-        sdl2::keyboard::Keycode::Return => Some(joypad::Button::Start),
-        sdl2::keyboard::Keycode::RShift => Some(joypad::Button::Select),
-        sdl2::keyboard::Keycode::C => Some(joypad::Button::A),
-        sdl2::keyboard::Keycode::X => Some(joypad::Button::B),
+        VirtualKeyCode::Up => Some(joypad::Button::Up),
+        VirtualKeyCode::Down => Some(joypad::Button::Down),
+        VirtualKeyCode::Left => Some(joypad::Button::Left),
+        VirtualKeyCode::Right => Some(joypad::Button::Right),
+        VirtualKeyCode::Return => Some(joypad::Button::Start),
+        VirtualKeyCode::RShift => Some(joypad::Button::Select),
+        VirtualKeyCode::C => Some(joypad::Button::A),
+        VirtualKeyCode::X => Some(joypad::Button::B),
         _ => None,
     }
 }
@@ -93,6 +96,7 @@ fn keymap(code: sdl2::keyboard::Keycode) -> Option<joypad::Button> {
 enum State {
     Paused,
     Running,
+    WaitForSync,
     Step,
     Done,
 }
@@ -135,12 +139,9 @@ fn main() {
 
     let mut gameboy = gameboy::GameBoy::new(cart);
 
-    let sdl_context = sdl2::init().unwrap();
-    let sdl_video = sdl_context.video().unwrap();
-    let mut sdl_events = sdl_context.event_pump().unwrap();
-    let mut sdl_timer = sdl_context.timer().unwrap();
+    let event_loop = EventLoop::new();
 
-    let mut video_out = VideoOut::new(&sdl_video, 4);
+    let mut video_out = VideoOut::new(&event_loop, 4);
     video_out.set_title("Rustboy");
 
     let mut state = State::Paused;
@@ -148,89 +149,110 @@ fn main() {
 
     let frame_duration =
         Duration::from_secs_f64(video::SCREEN_REFRESH_CYCLES as f64 / cpu::CYCLES_PER_SEC as f64);
-    let mut last_frame_start = Instant::now();
+    let mut frame_start = Instant::now();
 
-    let mut last_fps_update = last_frame_start;
+    let mut last_fps_update = frame_start;
     let mut frames = 0;
 
-    println!("f: {:?}", frame_duration);
+    println!(
+        "ft: {:?} / fps: {:.02}",
+        frame_duration,
+        1.0 / frame_duration.as_secs_f64()
+    );
 
-    while state != State::Done {
-        // Debugger
-        if state == State::Paused || state == State::Step {
-            match debugger.prompt(gameboy.cpu()) {
-                debug::DebuggerCommand::Quit => break,
-                debug::DebuggerCommand::Run => state = State::Running,
-                debug::DebuggerCommand::Step => state = State::Step,
-            }
+    event_loop.run(move |event, _, control_flow| {
+        if let Event::RedrawRequested(_) = event {
+            println!("RedrawRequested");
+            video_out.render();
+            return;
         }
 
-        // Emulation loop
-        let mut new_frame;
-        loop {
-            new_frame = gameboy.step();
-
-            if debugger.should_break(gameboy.cpu()) {
-                state = State::Paused;
-                break;
-            }
-
-            if new_frame || state == State::Step {
-                break;
-            }
+        if let Event::WindowEvent {
+            event: WindowEvent::CloseRequested,
+            ..
+        } = event
+        {
+            state = State::Done;
         }
 
-        if new_frame {
-            video_out.blit_and_present(gameboy.pixels());
-
-            // Synchronize speed based on frame time
-            let now = Instant::now();
-            let frame_time = now - last_frame_start;
-            if frame_time < frame_duration {
-                let delay_msec = (frame_duration - frame_time).as_millis();
-                sdl_timer.delay(delay_msec as u32);
-            }
-            // TODO: What should we do when we take longer than frame_duration?
-            last_frame_start = Instant::now();
-
-            frames += 1;
-            let time_since_last_fps_update = last_frame_start - last_fps_update;
-            if time_since_last_fps_update > Duration::from_secs(1) {
-                let fps = frames as f64 / (time_since_last_fps_update).as_secs_f64();
-                video_out.set_title(format!("Rustboy - {:.02} fps", fps).as_ref());
-                last_fps_update = now;
-                frames = 0;
-            }
-        }
-
-        // Event handling loop
-        for event in sdl_events.poll_iter() {
-            use sdl2::event::Event;
-
-            match event {
-                Event::Quit { .. } => {
-                    state = State::Done;
-                    break;
-                }
-                Event::KeyDown {
-                    keycode: Some(key), ..
-                } => match keymap(key) {
-                    Some(button) => gameboy.set_button(button, true),
-                    None => {
-                        if key == sdl2::keyboard::Keycode::Escape {
-                            state = State::Paused;
-                        }
-                    }
+        if let Event::WindowEvent {
+            event:
+                WindowEvent::KeyboardInput {
+                    input:
+                        KeyboardInput {
+                            virtual_keycode: Some(keycode),
+                            state: keystate,
+                            ..
+                        },
+                    ..
                 },
-                Event::KeyUp {
-                    keycode: Some(key), ..
-                } => {
-                    if let Some(button) = keymap(key) {
-                        gameboy.set_button(button, false)
-                    }
-                }
-                _ => (),
+            ..
+        } = event
+        {
+            if keystate == ElementState::Pressed && keycode == VirtualKeyCode::Escape {
+                state = State::Paused;
+            }
+
+            if let Some(button) = keymap(keycode) {
+                gameboy.set_button(button, keystate == ElementState::Pressed);
             }
         }
-    }
+
+        if let Event::MainEventsCleared = event {
+            if state == State::Done {
+                *control_flow = ControlFlow::Exit;
+                return;
+            }
+
+            // Debugger
+            if state == State::Paused || state == State::Step {
+                match debugger.prompt(gameboy.cpu()) {
+                    debug::DebuggerCommand::Quit => state = State::Done,
+                    debug::DebuggerCommand::Run => state = State::Running,
+                    debug::DebuggerCommand::Step => state = State::Step,
+                }
+            }
+
+            // Emulation loop
+            if state == State::Running {
+                let mut new_frame;
+                loop {
+                    new_frame = gameboy.step();
+
+                    if debugger.should_break(gameboy.cpu()) {
+                        state = State::Paused;
+                        break;
+                    }
+
+                    if new_frame || state == State::Step {
+                        break;
+                    }
+                }
+
+                if new_frame {
+                    video_out.blit(gameboy.pixels());
+                    video_out.render();
+
+                    state = State::WaitForSync;
+                }
+            }
+
+            // Sync frame rate
+            if state == State::WaitForSync {
+                if frame_start.elapsed() >= frame_duration {
+                    state = State::Running;
+
+                    frame_start = Instant::now();
+
+                    frames += 1;
+                    if last_fps_update.elapsed() > Duration::from_secs(1) {
+                        let fps = frames as f64 / last_fps_update.elapsed().as_secs_f64();
+                        video_out.set_title(format!("Rustboy - {:.02} fps", fps).as_ref());
+                        last_fps_update = frame_start;
+                        frames = 0;
+                    }
+                }
+            }
+        }
+    });
 }
