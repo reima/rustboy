@@ -162,7 +162,6 @@ fn main() {
 
     event_loop.run(move |event, _, control_flow| {
         if let Event::RedrawRequested(_) = event {
-            println!("RedrawRequested");
             video_out.render();
             return;
         }
@@ -238,19 +237,18 @@ fn main() {
             }
 
             // Sync frame rate
-            if state == State::WaitForSync {
-                if frame_start.elapsed() >= frame_duration {
-                    state = State::Running;
+            if state == State::WaitForSync && frame_start.elapsed() >= frame_duration {
+                state = State::Running;
 
-                    frame_start = Instant::now();
+                frame_start = Instant::now();
 
-                    frames += 1;
-                    if last_fps_update.elapsed() > Duration::from_secs(1) {
-                        let fps = frames as f64 / last_fps_update.elapsed().as_secs_f64();
-                        video_out.set_title(format!("Rustboy - {:.02} fps", fps).as_ref());
-                        last_fps_update = frame_start;
-                        frames = 0;
-                    }
+                frames += 1;
+
+                if last_fps_update.elapsed() > Duration::from_secs(1) {
+                    let fps = frames as f64 / last_fps_update.elapsed().as_secs_f64();
+                    video_out.set_title(format!("Rustboy - {:.02} fps", fps).as_ref());
+                    last_fps_update = frame_start;
+                    frames = 0;
                 }
             }
         }
