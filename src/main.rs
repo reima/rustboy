@@ -3,7 +3,7 @@
 #[macro_use]
 extern crate log;
 
-use pixels::{wgpu::TextureFormat, Pixels, PixelsBuilder, SurfaceTexture};
+use pixels::{wgpu::BlendState, wgpu::TextureFormat, Pixels, PixelsBuilder, SurfaceTexture};
 use std::path::Path;
 use std::time::{Duration, Instant};
 use winit::{
@@ -58,6 +58,7 @@ impl VideoOut {
             texture,
         )
         .texture_format(TextureFormat::Bgra8UnormSrgb)
+        .blend_state(BlendState::REPLACE)
         .enable_vsync(false)
         .build()
         .unwrap();
@@ -66,7 +67,7 @@ impl VideoOut {
     }
 
     fn blit(&mut self, pixels: &[u8]) {
-        self.pixels.get_frame().copy_from_slice(pixels);
+        self.pixels.get_frame_mut().copy_from_slice(pixels);
     }
 
     fn render(&mut self) {

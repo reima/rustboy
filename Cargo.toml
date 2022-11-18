@@ -6,5 +6,5 @@ edition = "2021"
 
 [dependencies]
 log = "0.4"
-pixels = "0.8"
-winit = "0.26"
+pixels = "0.10"
+winit = "0.27"
