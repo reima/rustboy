@@ -22,7 +22,10 @@ pub struct Cartridge {
 }
 
 impl Cartridge {
-    pub fn from_path(path: &Path) -> Result<Cartridge> {
+    pub fn from_path<P>(path: P) -> Result<Cartridge>
+    where
+        P: AsRef<Path>,
+    {
         Cartridge::from_file(&mut File::open(path).unwrap())
     }
 

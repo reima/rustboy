@@ -4,7 +4,6 @@
 extern crate log;
 
 use pixels::{wgpu::BlendState, wgpu::TextureFormat, Pixels, PixelsBuilder, SurfaceTexture};
-use std::path::Path;
 use std::time::{Duration, Instant};
 use winit::{
     dpi::LogicalSize,
@@ -102,27 +101,31 @@ enum State {
     Done,
 }
 
+#[derive(argh::FromArgs)]
+#[argh(description = "rustboy is an emulator for the Nintendo GameBoy.")]
+struct Args {
+    #[argh(switch, short = 'd')]
+    #[argh(description = "disassemble ROM")]
+    disassemble: bool,
+
+    #[argh(switch, short = 'p')]
+    #[argh(description = "pause at start")]
+    pause: bool,
+
+    #[argh(positional)]
+    #[argh(description = "ROM path")]
+    rom: String,
+}
+
 fn main() {
-    let args: Vec<_> = std::env::args().collect();
-    if args.len() != 2 && !(args.len() == 3 && args[1] == "-d") {
-        println!("Usage: {} [-d] rom.gb", args[0]);
-        return;
-    }
+    let args: Args = argh::from_env();
 
-    let mut disassemble = false;
-    let path = if args.len() == 2 {
-        &args[1]
-    } else {
-        disassemble = true;
-        &args[2]
-    };
-
-    let mut cart = match cartridge::Cartridge::from_path(Path::new(path)) {
+    let mut cart = match cartridge::Cartridge::from_path(args.rom) {
         Ok(cart) => cart,
         Err(e) => panic!("I/O error: {}", e),
     };
 
-    if disassemble {
+    if args.disassemble {
         // Disassemble only
         let mut d = disasm::Disasm {
             mem: &mut cart,
@@ -145,7 +148,11 @@ fn main() {
     let mut video_out = VideoOut::new(&event_loop, 4);
     video_out.set_title("Rustboy");
 
-    let mut state = State::Paused;
+    let mut state = if args.pause {
+        State::Paused
+    } else {
+        State::Running
+    };
     let mut debugger = debug::Debugger::new();
 
     let frame_duration =
