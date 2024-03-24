@@ -7,8 +7,9 @@ use pixels::{wgpu::BlendState, wgpu::TextureFormat, Pixels, PixelsBuilder, Surfa
 use std::time::{Duration, Instant};
 use winit::{
     dpi::LogicalSize,
-    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+    event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
+    keyboard::{KeyCode, PhysicalKey},
     window::{Window, WindowBuilder},
 };
 
@@ -67,7 +68,7 @@ impl VideoOut {
     }
 
     fn blit(&mut self, pixels: &[u8]) {
-        self.pixels.get_frame_mut().copy_from_slice(pixels);
+        self.pixels.frame_mut().copy_from_slice(pixels);
     }
 
     fn render(&mut self) {
@@ -79,16 +80,16 @@ impl VideoOut {
     }
 }
 
-fn keymap(code: VirtualKeyCode) -> Option<joypad::Button> {
+fn keymap(code: KeyCode) -> Option<joypad::Button> {
     match code {
-        VirtualKeyCode::Up => Some(joypad::Button::Up),
-        VirtualKeyCode::Down => Some(joypad::Button::Down),
-        VirtualKeyCode::Left => Some(joypad::Button::Left),
-        VirtualKeyCode::Right => Some(joypad::Button::Right),
-        VirtualKeyCode::Return => Some(joypad::Button::Start),
-        VirtualKeyCode::RShift => Some(joypad::Button::Select),
-        VirtualKeyCode::C => Some(joypad::Button::A),
-        VirtualKeyCode::X => Some(joypad::Button::B),
+        KeyCode::ArrowUp => Some(joypad::Button::Up),
+        KeyCode::ArrowDown => Some(joypad::Button::Down),
+        KeyCode::ArrowLeft => Some(joypad::Button::Left),
+        KeyCode::ArrowRight => Some(joypad::Button::Right),
+        KeyCode::Enter => Some(joypad::Button::Start),
+        KeyCode::ShiftRight => Some(joypad::Button::Select),
+        KeyCode::KeyC => Some(joypad::Button::A),
+        KeyCode::KeyX => Some(joypad::Button::B),
         _ => None,
     }
 }
@@ -144,7 +145,8 @@ fn main() {
 
     let mut gameboy = gameboy::GameBoy::new(cart);
 
-    let event_loop = EventLoop::new();
+    let event_loop = EventLoop::new().unwrap();
+    event_loop.set_control_flow(ControlFlow::Poll);
 
     let mut video_out = VideoOut::new(&event_loop, 4);
     video_out.set_title("Rustboy");
@@ -169,97 +171,103 @@ fn main() {
         1.0 / frame_duration.as_secs_f64()
     );
 
-    event_loop.run(move |event, _, control_flow| {
-        if let Event::RedrawRequested(_) = event {
-            video_out.render();
-            return;
-        }
-
-        if let Event::WindowEvent {
-            event: WindowEvent::CloseRequested,
-            ..
-        } = event
-        {
-            state = State::Done;
-        }
-
-        if let Event::WindowEvent {
-            event:
-                WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            virtual_keycode: Some(keycode),
-                            state: keystate,
-                            ..
-                        },
-                    ..
-                },
-            ..
-        } = event
-        {
-            if keystate == ElementState::Pressed && keycode == VirtualKeyCode::Escape {
-                state = State::Paused;
-            }
-
-            if let Some(button) = keymap(keycode) {
-                gameboy.set_button(button, keystate == ElementState::Pressed);
-            }
-        }
-
-        if let Event::MainEventsCleared = event {
-            if state == State::Done {
-                *control_flow = ControlFlow::Exit;
+    event_loop
+        .run(move |event, elwt| {
+            if let Event::WindowEvent {
+                event: WindowEvent::RedrawRequested,
+                ..
+            } = event
+            {
+                video_out.render();
                 return;
             }
 
-            // Debugger
-            if state == State::Paused || state == State::Step {
-                match debugger.prompt(gameboy.cpu(), gameboy.mem()) {
-                    debug::DebuggerCommand::Quit => state = State::Done,
-                    debug::DebuggerCommand::Run => state = State::Running,
-                    debug::DebuggerCommand::Step => state = State::Step,
+            if let Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                ..
+            } = event
+            {
+                state = State::Done;
+            }
+
+            if let Event::WindowEvent {
+                event:
+                    WindowEvent::KeyboardInput {
+                        event:
+                            KeyEvent {
+                                physical_key: PhysicalKey::Code(keycode),
+                                state: keystate,
+                                ..
+                            },
+                        ..
+                    },
+                ..
+            } = event
+            {
+                if keystate == ElementState::Pressed && keycode == KeyCode::Escape {
+                    state = State::Paused;
+                }
+
+                if let Some(button) = keymap(keycode) {
+                    gameboy.set_button(button, keystate == ElementState::Pressed);
                 }
             }
 
-            // Emulation loop
-            if state == State::Running {
-                let mut new_frame;
-                loop {
-                    new_frame = gameboy.step();
+            if let Event::AboutToWait = event {
+                if state == State::Done {
+                    elwt.exit();
+                    return;
+                }
 
-                    if debugger.should_break(gameboy.cpu()) {
-                        state = State::Paused;
-                        break;
+                // Debugger
+                if state == State::Paused || state == State::Step {
+                    match debugger.prompt(gameboy.cpu(), gameboy.mem()) {
+                        debug::DebuggerCommand::Quit => state = State::Done,
+                        debug::DebuggerCommand::Run => state = State::Running,
+                        debug::DebuggerCommand::Step => state = State::Step,
+                    }
+                }
+
+                // Emulation loop
+                if state == State::Running {
+                    let mut new_frame;
+                    loop {
+                        new_frame = gameboy.step();
+
+                        if debugger.should_break(gameboy.cpu()) {
+                            state = State::Paused;
+                            break;
+                        }
+
+                        if new_frame || state == State::Step {
+                            break;
+                        }
                     }
 
-                    if new_frame || state == State::Step {
-                        break;
+                    if new_frame {
+                        video_out.blit(gameboy.pixels());
+                        video_out.render();
+
+                        state = State::WaitForSync;
                     }
                 }
 
-                if new_frame {
-                    video_out.blit(gameboy.pixels());
-                    video_out.render();
+                // Sync frame rate
+                if state == State::WaitForSync && frame_start.elapsed() >= frame_duration {
+                    state = State::Running;
 
-                    state = State::WaitForSync;
+                    frame_start = Instant::now();
+
+                    frames += 1;
+
+                    if last_fps_update.elapsed() > Duration::from_secs(1) {
+                        let fps = frames as f64 / last_fps_update.elapsed().as_secs_f64();
+                        video_out.set_title(format!("Rustboy - {:.02} fps", fps).as_ref());
+                        last_fps_update = frame_start;
+                        frames = 0;
+                    }
                 }
             }
-
-            // Sync frame rate
-            if state == State::WaitForSync && frame_start.elapsed() >= frame_duration {
-                state = State::Running;
-
-                frame_start = Instant::now();
-
-                frames += 1;
-
-                if last_fps_update.elapsed() > Duration::from_secs(1) {
-                    let fps = frames as f64 / last_fps_update.elapsed().as_secs_f64();
-                    video_out.set_title(format!("Rustboy - {:.02} fps", fps).as_ref());
-                    last_fps_update = frame_start;
-                    frames = 0;
-                }
-            }
-        }
-    });
+        })
+        .unwrap();
 }
