@@ -98,7 +98,7 @@ impl<'a> Mem for MemMap<'a> {
 //
 
 pub struct GameBoy<'a> {
-    cpu: Cpu<MemMap<'a>>,
+    cpu: Cpu<'a>,
 }
 
 impl<'a> GameBoy<'a> {
@@ -120,7 +120,7 @@ impl<'a> GameBoy<'a> {
         GameBoy { cpu }
     }
 
-    pub fn cpu(&self) -> &Cpu<MemMap> {
+    pub fn cpu(&self) -> &Cpu {
         &self.cpu
     }
 

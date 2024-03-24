@@ -60,7 +60,7 @@ fn print_mem<M: Mem>(mem: &M, addr: u16) {
     }
 }
 
-fn print_regs<M>(cpu: &cpu::Cpu<M>) {
+fn print_regs(cpu: &cpu::Cpu) {
     println!(
         "AF={:02X}{:02X} BC={:02X}{:02X} DE={:02X}{:02X} HL={:02X}{:02X} SP={:04X} PC={:04X} CY={}",
         cpu.regs.a,
@@ -218,7 +218,7 @@ impl Debugger {
         }
     }
 
-    fn dispatch<M: Mem>(&mut self, cpu: &cpu::Cpu<M>, words: &[&str]) -> Option<DebuggerCommand> {
+    fn dispatch(&mut self, cpu: &cpu::Cpu, words: &[&str]) -> Option<DebuggerCommand> {
         if words.is_empty() {
             return None;
         }
@@ -300,7 +300,7 @@ impl Debugger {
         }
     }
 
-    pub fn prompt<M: Mem>(&mut self, cpu: &cpu::Cpu<M>) -> DebuggerCommand {
+    pub fn prompt(&mut self, cpu: &cpu::Cpu) -> DebuggerCommand {
         loop {
             print!("> ");
             stdout().flush().unwrap();
@@ -323,7 +323,7 @@ impl Debugger {
         }
     }
 
-    pub fn should_break<M>(&self, cpu: &cpu::Cpu<M>) -> bool {
+    pub fn should_break(&self, cpu: &cpu::Cpu) -> bool {
         match self.breakpoints.iter().find(|&bp| *bp == cpu.regs.pc) {
             Some(&bp) => {
                 println!("Breakpoint at ${:04X}", bp);

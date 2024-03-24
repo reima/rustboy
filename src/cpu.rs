@@ -1,4 +1,4 @@
-use crate::mem;
+use crate::{gameboy::MemMap, mem::Mem};
 
 //
 // Statics
@@ -66,7 +66,7 @@ pub enum Reg8 {
 }
 
 impl Reg8 {
-    fn load<M: mem::Mem>(self, cpu: &Cpu<M>) -> u8 {
+    fn load(self, cpu: &Cpu) -> u8 {
         match self {
             Reg8::A => cpu.regs.a,
             Reg8::B => cpu.regs.b,
@@ -78,7 +78,7 @@ impl Reg8 {
         }
     }
 
-    fn store<M: mem::Mem>(self, cpu: &mut Cpu<M>, val: u8) {
+    fn store(self, cpu: &mut Cpu, val: u8) {
         match self {
             Reg8::A => cpu.regs.a = val,
             Reg8::B => cpu.regs.b = val,
@@ -102,7 +102,7 @@ pub enum Reg16 {
 }
 
 impl Reg16 {
-    fn load<M: mem::Mem>(self, cpu: &Cpu<M>) -> u16 {
+    fn load(self, cpu: &Cpu) -> u16 {
         match self {
             Reg16::AF => (u16::from(cpu.regs.a) << 8) | u16::from(cpu.regs.f),
             Reg16::BC => (u16::from(cpu.regs.b) << 8) | u16::from(cpu.regs.c),
@@ -113,7 +113,7 @@ impl Reg16 {
         }
     }
 
-    fn store<M: mem::Mem>(self, cpu: &mut Cpu<M>, val: u16) {
+    fn store(self, cpu: &mut Cpu, val: u16) {
         match self {
             Reg16::AF => {
                 cpu.regs.a = (val >> 8) as u8;
@@ -160,7 +160,7 @@ impl Addr8 {
         }
     }
 
-    fn load<M: mem::Mem>(self, cpu: &mut Cpu<M>) -> u8 {
+    fn load(self, cpu: &mut Cpu) -> u8 {
         match self {
             Addr8::Imm(val) => val,
             Addr8::Ind(offset) => cpu.mem.loadb(0xff00 + u16::from(offset)),
@@ -183,7 +183,7 @@ impl Addr8 {
         }
     }
 
-    fn store<M: mem::Mem>(self, cpu: &mut Cpu<M>, val: u8) {
+    fn store(self, cpu: &mut Cpu, val: u8) {
         match self {
             Addr8::Ind(offset) => cpu.mem.storeb(0xff00 + u16::from(offset), val),
             Addr8::Imm16Ind(addr) => cpu.mem.storeb(addr, val),
@@ -223,7 +223,7 @@ impl Addr16 {
         }
     }
 
-    fn load<M: mem::Mem>(self, cpu: &mut Cpu<M>) -> u16 {
+    fn load(self, cpu: &Cpu) -> u16 {
         match self {
             Addr16::Imm(val) => val,
             Addr16::Ind(addr) => cpu.mem.loadw(addr),
@@ -231,7 +231,7 @@ impl Addr16 {
         }
     }
 
-    fn store<M: mem::Mem>(self, cpu: &mut Cpu<M>, val: u16) {
+    fn store(self, cpu: &mut Cpu, val: u16) {
         match self {
             Addr16::Ind(addr) => cpu.mem.storew(addr, val),
             Addr16::Reg16Dir(r) => r.store(cpu, val),
@@ -250,7 +250,7 @@ pub enum Cond {
 }
 
 impl Cond {
-    fn eval<M: mem::Mem>(self, cpu: &Cpu<M>) -> bool {
+    fn eval(self, cpu: &Cpu) -> bool {
         match self {
             Cond::None => true,
             Cond::Z => (cpu.regs.f & ZERO_FLAG) != 0,
@@ -697,16 +697,16 @@ pub fn decode<R, D: Decoder<R>>(d: &mut D) -> R {
 // CPU
 //
 
-pub struct Cpu<M> {
+pub struct Cpu<'a> {
     pub regs: Regs,
     ime: bool,
     halted: bool,
     pub cycles: u64,
-    pub mem: M,
+    pub mem: MemMap<'a>,
 }
 
-impl<M: mem::Mem> Cpu<M> {
-    pub fn new(mem: M) -> Cpu<M> {
+impl<'a> Cpu<'a> {
+    pub fn new(mem: MemMap<'a>) -> Cpu<'a> {
         Cpu {
             regs: Regs::new(),
             ime: false, // TODO: Are interrupts enabled at boot?
@@ -818,7 +818,7 @@ impl<M: mem::Mem> Cpu<M> {
 //   * http://www.z80.info/z80code.txt
 //   * http://marc.rawer.de/Gameboy/Docs/GBCPUman.pdf
 //   * http://www.zilog.com/docs/z80/um0080.pdf
-impl<M: mem::Mem> Decoder<u8> for Cpu<M> {
+impl<'a> Decoder<u8> for Cpu<'a> {
     fn fetch(&mut self) -> u8 {
         let result = self.mem.loadb(self.regs.pc);
         self.regs.pc += 1;
