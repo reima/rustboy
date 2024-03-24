@@ -213,7 +213,7 @@ fn main() {
 
             // Debugger
             if state == State::Paused || state == State::Step {
-                match debugger.prompt(gameboy.cpu()) {
+                match debugger.prompt(gameboy.cpu(), gameboy.mem()) {
                     debug::DebuggerCommand::Quit => state = State::Done,
                     debug::DebuggerCommand::Run => state = State::Running,
                     debug::DebuggerCommand::Step => state = State::Step,

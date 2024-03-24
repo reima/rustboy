@@ -1,8 +1,8 @@
 use crate::cpu::{Addr16, Addr8, Cond, Decoder};
 use crate::mem;
 
-pub struct Disasm<'a, M: 'a> {
-    pub mem: &'a M,
+pub struct Disasm<'a> {
+    pub mem: &'a dyn mem::Mem,
     pub pc: u16,
 }
 
@@ -70,7 +70,7 @@ fn binary16(mnemonic: &str, addr1: Addr16, addr2: Addr16) -> String {
     )
 }
 
-impl<'a, M: mem::Mem> Decoder<String> for Disasm<'a, M> {
+impl<'a> Decoder<String> for Disasm<'a> {
     fn fetch(&mut self) -> u8 {
         let result = self.mem.loadb(self.pc);
         self.pc += 1;

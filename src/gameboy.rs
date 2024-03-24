@@ -98,12 +98,16 @@ impl<'a> Mem for MemMap<'a> {
 //
 
 pub struct GameBoy<'a> {
-    cpu: Cpu<'a>,
+    cpu: Cpu,
+    mem: MemMap<'a>,
 }
 
 impl<'a> GameBoy<'a> {
     pub fn new(cart: Cartridge) -> GameBoy<'a> {
-        let memmap = MemMap {
+        let mut cpu = Cpu::new();
+        cpu.regs.pc = 0x100;
+
+        let mem = MemMap {
             cart,
             wram: WorkRam::new(),
             timer: Timer::new(),
@@ -114,44 +118,46 @@ impl<'a> GameBoy<'a> {
             joypad: Joypad::new(),
             dummy: Dummy,
         };
-        let mut cpu = Cpu::new(memmap);
-        cpu.regs.pc = 0x100;
 
-        GameBoy { cpu }
+        GameBoy { cpu, mem }
     }
 
     pub fn cpu(&self) -> &Cpu {
         &self.cpu
     }
 
+    pub fn mem(&self) -> &dyn Mem {
+        &self.mem
+    }
+
     pub fn pixels(&self) -> &[u8] {
-        &self.cpu.mem.video.screen
+        &self.mem.video.screen
     }
 
     pub fn step(&mut self) -> bool {
-        let cycles = self.cpu.step();
+        let cycles = self.cpu.step(&mut self.mem);
 
-        if let Some(TimerSignal::TIMAOverflow) = self.cpu.mem.timer.tick(cycles) {
-            self.cpu.mem.intr.irq(IRQ_TIMER);
+        if let Some(TimerSignal::TIMAOverflow) = self.mem.timer.tick(cycles) {
+            self.mem.intr.irq(IRQ_TIMER);
         }
 
         let mut new_frame = false;
-        let video_signals = self.cpu.mem.video.tick(cycles);
+        let video_signals = self.mem.video.tick(cycles);
         for signal in &video_signals {
             match *signal {
                 VideoSignal::Dma(base) => {
                     // Do DMA transfer instantaneously
                     let base_addr = u16::from(base) << 8;
                     for offset in 0x00u16..0xa0u16 {
-                        let val = self.cpu.mem.loadb(base_addr + offset);
-                        self.cpu.mem.storeb(0xfe00 + offset, val);
+                        let val = self.mem.loadb(base_addr + offset);
+                        self.mem.storeb(0xfe00 + offset, val);
                     }
                 }
                 VideoSignal::VBlank => {
-                    self.cpu.mem.intr.irq(IRQ_VBLANK);
+                    self.mem.intr.irq(IRQ_VBLANK);
                     new_frame = true;
                 }
-                VideoSignal::Lcd => self.cpu.mem.intr.irq(IRQ_LCD),
+                VideoSignal::Lcd => self.mem.intr.irq(IRQ_LCD),
             }
         }
 
@@ -159,6 +165,6 @@ impl<'a> GameBoy<'a> {
     }
 
     pub fn set_button(&mut self, button: Button, pressed: bool) {
-        self.cpu.mem.joypad.set_button(button, pressed);
+        self.mem.joypad.set_button(button, pressed);
     }
 }
