@@ -1,8 +1,0 @@
-language: rust
-os: linux
-dist: focal
-before_script:
-  - rustup component add clippy
-script:
-  - cargo clippy
-  - cargo build --verbose
