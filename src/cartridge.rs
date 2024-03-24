@@ -7,8 +7,8 @@ use std::path::Path;
 const HEADER_OFFSET: u64 = 0x100;
 const ROM_BANK_SIZE: usize = 0x4000;
 
-pub enum MBC {
-    MBC1,
+pub enum Mbc {
+    Mbc1,
 }
 
 pub struct Cartridge {
@@ -18,7 +18,7 @@ pub struct Cartridge {
     pub ram_size: u8,
     pub rom_banks: Vec<[u8; ROM_BANK_SIZE]>,
     pub rom_bank: u8,
-    pub mbc: Option<MBC>,
+    pub mbc: Option<Mbc>,
 }
 
 impl Cartridge {
@@ -41,7 +41,7 @@ impl Cartridge {
         let cartridge_type = header[0x47];
         let mbc = match cartridge_type {
             0x00 => None,
-            0x01 => Some(MBC::MBC1),
+            0x01 => Some(Mbc::Mbc1),
             _ => panic!("unsupported cartridge type: 0x{:02X}", cartridge_type),
         };
 
@@ -101,7 +101,7 @@ impl Mem for Cartridge {
     fn storeb(&mut self, addr: u16, val: u8) {
         match self.mbc {
             None => info!("store 0x{:02X} in cartridge ROM at ${:04X}", val, addr),
-            Some(MBC::MBC1) => {
+            Some(Mbc::Mbc1) => {
                 match addr {
                     0x0000..=0x1fff => debug!("RAM enable"),
                     0x2000..=0x3fff => {
