@@ -11,7 +11,7 @@ use std::path::Path;
 
 fn disasm(mem: &dyn mem::Mem, addr: &mut u16) -> String {
     let mut d = disasm::Disasm { mem, pc: *addr };
-    let result = cpu::decode(&mut d);
+    let result = d.disasm();
     *addr = d.pc;
     result
 }

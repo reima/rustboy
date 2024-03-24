@@ -1,4 +1,7 @@
-use crate::mem::Mem;
+use crate::{
+    instr::{Addr16, Addr8, Cond, Fetch, Op, Reg16, Reg8},
+    mem::Mem,
+};
 
 //
 // Statics
@@ -50,22 +53,12 @@ impl Regs {
     }
 }
 
-//
-// Instruction decoding
-//
-
-#[derive(Debug, Clone, Copy)]
-pub enum Reg8 {
-    A,
-    B,
-    C,
-    D,
-    E,
-    H,
-    L,
+trait CpuReg<T> {
+    fn load(self, regs: &Regs) -> T;
+    fn store(self, regs: &mut Regs, val: T);
 }
 
-impl Reg8 {
+impl CpuReg<u8> for Reg8 {
     fn load(self, regs: &Regs) -> u8 {
         match self {
             Reg8::A => regs.a,
@@ -91,17 +84,7 @@ impl Reg8 {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum Reg16 {
-    AF,
-    BC,
-    DE,
-    HL,
-    SP,
-    PC,
-}
-
-impl Reg16 {
+impl CpuReg<u16> for Reg16 {
     fn load(self, regs: &Regs) -> u16 {
         match self {
             Reg16::AF => (u16::from(regs.a) << 8) | u16::from(regs.f),
@@ -137,19 +120,13 @@ impl Reg16 {
     }
 }
 
-#[derive(Clone, Copy)]
-pub enum Addr8 {
-    Imm(u8),
-    Ind(u8),
-    Imm16Ind(u16),
-    Reg8Dir(Reg8),
-    Reg8Ind(Reg8),
-    Reg16Ind(Reg16),
-    Reg16IndInc(Reg16),
-    Reg16IndDec(Reg16),
+trait CpuAddr<T> {
+    fn cycles(self) -> u8;
+    fn load(self, cpu: &mut Cpu, mem: &dyn Mem) -> T;
+    fn store(self, cpu: &mut Cpu, mem: &mut dyn Mem, val: T);
 }
 
-impl Addr8 {
+impl CpuAddr<u8> for Addr8 {
     fn cycles(self) -> u8 {
         // Every (byte) memory access costs 4 cycles
         match self {
@@ -160,22 +137,22 @@ impl Addr8 {
         }
     }
 
-    fn load(self, cpu_mem: &mut CpuMem) -> u8 {
+    fn load(self, cpu: &mut Cpu, mem: &dyn Mem) -> u8 {
         match self {
             Addr8::Imm(val) => val,
-            Addr8::Ind(offset) => cpu_mem.mem.loadb(0xff00 + u16::from(offset)),
-            Addr8::Imm16Ind(addr) => cpu_mem.mem.loadb(addr),
-            Addr8::Reg8Dir(r) => r.load(&cpu_mem.cpu.regs),
+            Addr8::Ind(offset) => mem.loadb(0xff00 + u16::from(offset)),
+            Addr8::Imm16Ind(addr) => mem.loadb(addr),
+            Addr8::Reg8Dir(r) => r.load(&cpu.regs),
             Addr8::Reg8Ind(r) => {
-                let offset = r.load(&cpu_mem.cpu.regs);
-                cpu_mem.mem.loadb(0xff00 + u16::from(offset))
+                let offset = r.load(&cpu.regs);
+                mem.loadb(0xff00 + u16::from(offset))
             }
             Addr8::Reg16Ind(r) | Addr8::Reg16IndInc(r) | Addr8::Reg16IndDec(r) => {
-                let addr = r.load(&cpu_mem.cpu.regs);
-                let result = cpu_mem.mem.loadb(addr);
+                let addr = r.load(&cpu.regs);
+                let result = mem.loadb(addr);
                 match self {
-                    Addr8::Reg16IndInc(_) => r.store(&mut cpu_mem.cpu.regs, addr + 1),
-                    Addr8::Reg16IndDec(_) => r.store(&mut cpu_mem.cpu.regs, addr - 1),
+                    Addr8::Reg16IndInc(_) => r.store(&mut cpu.regs, addr + 1),
+                    Addr8::Reg16IndDec(_) => r.store(&mut cpu.regs, addr - 1),
                     _ => (),
                 }
                 result
@@ -183,21 +160,21 @@ impl Addr8 {
         }
     }
 
-    fn store(self, cpu_mem: &mut CpuMem, val: u8) {
+    fn store(self, cpu: &mut Cpu, mem: &mut dyn Mem, val: u8) {
         match self {
-            Addr8::Ind(offset) => cpu_mem.mem.storeb(0xff00 + u16::from(offset), val),
-            Addr8::Imm16Ind(addr) => cpu_mem.mem.storeb(addr, val),
-            Addr8::Reg8Dir(r) => r.store(&mut cpu_mem.cpu.regs, val),
+            Addr8::Ind(offset) => mem.storeb(0xff00 + u16::from(offset), val),
+            Addr8::Imm16Ind(addr) => mem.storeb(addr, val),
+            Addr8::Reg8Dir(r) => r.store(&mut cpu.regs, val),
             Addr8::Reg8Ind(r) => {
-                let offset = r.load(&cpu_mem.cpu.regs);
-                cpu_mem.mem.storeb(0xff00 + u16::from(offset), val)
+                let offset = r.load(&cpu.regs);
+                mem.storeb(0xff00 + u16::from(offset), val)
             }
             Addr8::Reg16Ind(r) | Addr8::Reg16IndInc(r) | Addr8::Reg16IndDec(r) => {
-                let addr = r.load(&cpu_mem.cpu.regs);
-                cpu_mem.mem.storeb(addr, val);
+                let addr = r.load(&cpu.regs);
+                mem.storeb(addr, val);
                 match self {
-                    Addr8::Reg16IndInc(_) => r.store(&mut cpu_mem.cpu.regs, addr + 1),
-                    Addr8::Reg16IndDec(_) => r.store(&mut cpu_mem.cpu.regs, addr - 1),
+                    Addr8::Reg16IndInc(_) => r.store(&mut cpu.regs, addr + 1),
+                    Addr8::Reg16IndDec(_) => r.store(&mut cpu.regs, addr - 1),
                     _ => (),
                 }
             }
@@ -206,14 +183,7 @@ impl Addr8 {
     }
 }
 
-#[derive(Clone, Copy)]
-pub enum Addr16 {
-    Imm(u16),
-    Ind(u16),
-    Reg16Dir(Reg16),
-}
-
-impl Addr16 {
+impl CpuAddr<u16> for Addr16 {
     fn cycles(self) -> u8 {
         // Every (byte) memory access costs 4 cycles
         match self {
@@ -223,33 +193,28 @@ impl Addr16 {
         }
     }
 
-    fn load(self, cpu_mem: &CpuMem) -> u16 {
+    fn load(self, cpu: &mut Cpu, mem: &dyn Mem) -> u16 {
         match self {
             Addr16::Imm(val) => val,
-            Addr16::Ind(addr) => cpu_mem.mem.loadw(addr),
-            Addr16::Reg16Dir(r) => r.load(&cpu_mem.cpu.regs),
+            Addr16::Ind(addr) => mem.loadw(addr),
+            Addr16::Reg16Dir(r) => r.load(&cpu.regs),
         }
     }
 
-    fn store(self, cpu_mem: &mut CpuMem, val: u16) {
+    fn store(self, cpu: &mut Cpu, mem: &mut dyn Mem, val: u16) {
         match self {
-            Addr16::Ind(addr) => cpu_mem.mem.storew(addr, val),
-            Addr16::Reg16Dir(r) => r.store(&mut cpu_mem.cpu.regs, val),
+            Addr16::Ind(addr) => mem.storew(addr, val),
+            Addr16::Reg16Dir(r) => r.store(&mut cpu.regs, val),
             _ => panic!("invalid addressing mode for 16-bit store"),
         }
     }
 }
 
-#[derive(Copy, Clone)]
-pub enum Cond {
-    None,
-    Z,
-    NZ,
-    C,
-    NC,
+trait CpuCond {
+    fn eval(self, regs: &Regs) -> bool;
 }
 
-impl Cond {
+impl CpuCond for Cond {
     fn eval(self, regs: &Regs) -> bool {
         match self {
             Cond::None => true,
@@ -258,438 +223,6 @@ impl Cond {
             Cond::C => (regs.f & CARRY_FLAG) != 0,
             Cond::NC => (regs.f & CARRY_FLAG) == 0,
         }
-    }
-}
-
-pub trait Decoder<R> {
-    fn fetch(&mut self) -> u8;
-
-    // Misc/control
-    fn nop(&mut self) -> R;
-
-    fn ei(&mut self) -> R;
-    fn di(&mut self) -> R;
-
-    fn halt(&mut self) -> R;
-    fn stop(&mut self, val: u8) -> R;
-
-    // Jump/call
-    fn jp(&mut self, cond: Cond, addr: Addr16) -> R;
-    fn jr(&mut self, cond: Cond, rel: i8) -> R;
-
-    fn call(&mut self, cond: Cond, addr: Addr16) -> R;
-    fn rst(&mut self, addr: u8) -> R;
-
-    fn ret(&mut self, cond: Cond) -> R;
-    fn reti(&mut self) -> R;
-
-    // Load/store/move
-    fn ld8(&mut self, dst: Addr8, src: Addr8) -> R;
-    fn ld16(&mut self, dst: Addr16, src: Addr16) -> R;
-    fn ldh(&mut self, dst: Addr8, src: Addr8) -> R;
-    fn ldhl(&mut self, rel: i8) -> R;
-
-    fn push(&mut self, src: Addr16) -> R;
-    fn pop(&mut self, dst: Addr16) -> R;
-
-    // Arithmetic/logic
-    fn add8(&mut self, src: Addr8) -> R;
-    fn add16(&mut self, dst: Addr16, src: Addr16) -> R;
-    fn addsp(&mut self, rel: i8) -> R;
-    fn adc(&mut self, src: Addr8) -> R;
-
-    fn sub(&mut self, src: Addr8) -> R;
-    fn sbc(&mut self, src: Addr8) -> R;
-
-    fn inc8(&mut self, dst: Addr8) -> R;
-    fn inc16(&mut self, dst: Addr16) -> R;
-    fn dec8(&mut self, dst: Addr8) -> R;
-    fn dec16(&mut self, dst: Addr16) -> R;
-
-    fn and(&mut self, src: Addr8) -> R;
-    fn or(&mut self, src: Addr8) -> R;
-    fn xor(&mut self, src: Addr8) -> R;
-
-    fn cp(&mut self, src: Addr8) -> R;
-
-    fn cpl(&mut self) -> R;
-
-    fn scf(&mut self) -> R;
-    fn ccf(&mut self) -> R;
-
-    fn daa(&mut self) -> R;
-
-    // Rotation/shift/bit
-    fn rlca(&mut self) -> R;
-    fn rla(&mut self) -> R;
-    fn rrca(&mut self) -> R;
-    fn rra(&mut self) -> R;
-
-    fn rlc(&mut self, dst: Addr8) -> R;
-    fn rl(&mut self, dst: Addr8) -> R;
-    fn rrc(&mut self, dst: Addr8) -> R;
-    fn rr(&mut self, dst: Addr8) -> R;
-
-    fn sla(&mut self, dst: Addr8) -> R;
-    fn sra(&mut self, dst: Addr8) -> R;
-    fn srl(&mut self, dst: Addr8) -> R;
-
-    fn bit(&mut self, bit: u8, src: Addr8) -> R;
-    fn res(&mut self, bit: u8, dst: Addr8) -> R;
-    fn set(&mut self, bit: u8, dst: Addr8) -> R;
-
-    fn swap(&mut self, dst: Addr8) -> R;
-
-    // Undefined/illegal
-    fn undef(&mut self, opcode: u8) -> R;
-}
-
-// Several instructions use a 3 bit part of the opcode to encode common
-// operands, this method decodes the operand from the lower 3 bits
-fn decode_addr(code: u8) -> Addr8 {
-    match code & 0x07 {
-        0x00 => Addr8::Reg8Dir(Reg8::B),
-        0x01 => Addr8::Reg8Dir(Reg8::C),
-        0x02 => Addr8::Reg8Dir(Reg8::D),
-        0x03 => Addr8::Reg8Dir(Reg8::E),
-        0x04 => Addr8::Reg8Dir(Reg8::H),
-        0x05 => Addr8::Reg8Dir(Reg8::L),
-        0x06 => Addr8::Reg16Ind(Reg16::HL),
-        0x07 => Addr8::Reg8Dir(Reg8::A),
-        _ => panic!("logic error"),
-    }
-}
-
-// Source: http://www.pastraiser.com/cpu/gameboy/gameboy_opcodes.html
-pub fn decode<R, D: Decoder<R>>(d: &mut D) -> R {
-    let fetchw = |d: &mut D| -> u16 {
-        let lo = d.fetch();
-        let hi = d.fetch();
-        (u16::from(hi) << 8) | u16::from(lo)
-    };
-
-    let opcode = d.fetch();
-    match opcode {
-        // 0x00
-        0x00 => d.nop(),
-        0x01 => {
-            let imm = fetchw(d);
-            d.ld16(Addr16::Reg16Dir(Reg16::BC), Addr16::Imm(imm))
-        }
-        0x02 => d.ld8(Addr8::Reg16Ind(Reg16::BC), Addr8::Reg8Dir(Reg8::A)),
-        0x03 => d.inc16(Addr16::Reg16Dir(Reg16::BC)),
-        0x04 => d.inc8(Addr8::Reg8Dir(Reg8::B)),
-        0x05 => d.dec8(Addr8::Reg8Dir(Reg8::B)),
-        0x06 => {
-            let imm = d.fetch();
-            d.ld8(Addr8::Reg8Dir(Reg8::B), Addr8::Imm(imm))
-        }
-        0x07 => d.rlca(),
-
-        0x08 => {
-            let ind = fetchw(d);
-            d.ld16(Addr16::Ind(ind), Addr16::Reg16Dir(Reg16::SP))
-        }
-        0x09 => d.add16(Addr16::Reg16Dir(Reg16::HL), Addr16::Reg16Dir(Reg16::BC)),
-        0x0a => d.ld8(Addr8::Reg8Dir(Reg8::A), Addr8::Reg16Ind(Reg16::BC)),
-        0x0b => d.dec16(Addr16::Reg16Dir(Reg16::BC)),
-        0x0c => d.inc8(Addr8::Reg8Dir(Reg8::C)),
-        0x0d => d.dec8(Addr8::Reg8Dir(Reg8::C)),
-        0x0e => {
-            let imm = d.fetch();
-            d.ld8(Addr8::Reg8Dir(Reg8::C), Addr8::Imm(imm))
-        }
-        0x0f => d.rrca(),
-
-        // 0x10
-        0x10 => {
-            let val = d.fetch();
-            d.stop(val)
-        }
-        0x11 => {
-            let imm = fetchw(d);
-            d.ld16(Addr16::Reg16Dir(Reg16::DE), Addr16::Imm(imm))
-        }
-        0x12 => d.ld8(Addr8::Reg16Ind(Reg16::DE), Addr8::Reg8Dir(Reg8::A)),
-        0x13 => d.inc16(Addr16::Reg16Dir(Reg16::DE)),
-        0x14 => d.inc8(Addr8::Reg8Dir(Reg8::D)),
-        0x15 => d.dec8(Addr8::Reg8Dir(Reg8::D)),
-        0x16 => {
-            let imm = d.fetch();
-            d.ld8(Addr8::Reg8Dir(Reg8::D), Addr8::Imm(imm))
-        }
-        0x17 => d.rla(),
-
-        0x18 => {
-            let imm = d.fetch();
-            d.jr(Cond::None, imm as i8)
-        }
-        0x19 => d.add16(Addr16::Reg16Dir(Reg16::HL), Addr16::Reg16Dir(Reg16::DE)),
-        0x1a => d.ld8(Addr8::Reg8Dir(Reg8::A), Addr8::Reg16Ind(Reg16::DE)),
-        0x1b => d.dec16(Addr16::Reg16Dir(Reg16::DE)),
-        0x1c => d.inc8(Addr8::Reg8Dir(Reg8::E)),
-        0x1d => d.dec8(Addr8::Reg8Dir(Reg8::E)),
-        0x1e => {
-            let imm = d.fetch();
-            d.ld8(Addr8::Reg8Dir(Reg8::E), Addr8::Imm(imm))
-        }
-        0x1f => d.rra(),
-
-        // 0x20
-        0x20 => {
-            let imm = d.fetch();
-            d.jr(Cond::NZ, imm as i8)
-        }
-        0x21 => {
-            let imm = fetchw(d);
-            d.ld16(Addr16::Reg16Dir(Reg16::HL), Addr16::Imm(imm))
-        }
-        0x22 => d.ld8(Addr8::Reg16IndInc(Reg16::HL), Addr8::Reg8Dir(Reg8::A)),
-        0x23 => d.inc16(Addr16::Reg16Dir(Reg16::HL)),
-        0x24 => d.inc8(Addr8::Reg8Dir(Reg8::H)),
-        0x25 => d.dec8(Addr8::Reg8Dir(Reg8::H)),
-        0x26 => {
-            let imm = d.fetch();
-            d.ld8(Addr8::Reg8Dir(Reg8::H), Addr8::Imm(imm))
-        }
-        0x27 => d.daa(),
-
-        0x28 => {
-            let imm = d.fetch();
-            d.jr(Cond::Z, imm as i8)
-        }
-        0x29 => d.add16(Addr16::Reg16Dir(Reg16::HL), Addr16::Reg16Dir(Reg16::HL)),
-        0x2a => d.ld8(Addr8::Reg8Dir(Reg8::A), Addr8::Reg16IndInc(Reg16::HL)),
-        0x2b => d.dec16(Addr16::Reg16Dir(Reg16::HL)),
-        0x2c => d.inc8(Addr8::Reg8Dir(Reg8::L)),
-        0x2d => d.dec8(Addr8::Reg8Dir(Reg8::L)),
-        0x2e => {
-            let imm = d.fetch();
-            d.ld8(Addr8::Reg8Dir(Reg8::L), Addr8::Imm(imm))
-        }
-        0x2f => d.cpl(),
-
-        // 0x30
-        0x30 => {
-            let imm = d.fetch();
-            d.jr(Cond::NC, imm as i8)
-        }
-        0x31 => {
-            let imm = fetchw(d);
-            d.ld16(Addr16::Reg16Dir(Reg16::SP), Addr16::Imm(imm))
-        }
-        0x32 => d.ld8(Addr8::Reg16IndDec(Reg16::HL), Addr8::Reg8Dir(Reg8::A)),
-        0x33 => d.inc16(Addr16::Reg16Dir(Reg16::SP)),
-        0x34 => d.inc8(Addr8::Reg16Ind(Reg16::HL)),
-        0x35 => d.dec8(Addr8::Reg16Ind(Reg16::HL)),
-        0x36 => {
-            let imm = d.fetch();
-            d.ld8(Addr8::Reg16Ind(Reg16::HL), Addr8::Imm(imm))
-        }
-        0x37 => d.scf(),
-
-        0x38 => {
-            let imm = d.fetch();
-            d.jr(Cond::C, imm as i8)
-        }
-        0x39 => d.add16(Addr16::Reg16Dir(Reg16::HL), Addr16::Reg16Dir(Reg16::SP)),
-        0x3a => d.ld8(Addr8::Reg8Dir(Reg8::A), Addr8::Reg16IndDec(Reg16::HL)),
-        0x3b => d.dec16(Addr16::Reg16Dir(Reg16::SP)),
-        0x3c => d.inc8(Addr8::Reg8Dir(Reg8::A)),
-        0x3d => d.dec8(Addr8::Reg8Dir(Reg8::A)),
-        0x3e => {
-            let imm = d.fetch();
-            d.ld8(Addr8::Reg8Dir(Reg8::A), Addr8::Imm(imm))
-        }
-        0x3f => d.ccf(),
-
-        // 0x40-0x70
-        0x40..=0x75 | 0x77..=0x7f => d.ld8(decode_addr(opcode >> 3), decode_addr(opcode)),
-        0x76 => d.halt(),
-
-        // 0x80
-        0x80..=0x87 => d.add8(decode_addr(opcode)),
-        0x88..=0x8f => d.adc(decode_addr(opcode)),
-
-        // 0x90
-        0x90..=0x97 => d.sub(decode_addr(opcode)),
-        0x98..=0x9f => d.sbc(decode_addr(opcode)),
-
-        // 0xa0
-        0xa0..=0xa7 => d.and(decode_addr(opcode)),
-        0xa8..=0xaf => d.xor(decode_addr(opcode)),
-
-        // 0xb0
-        0xb0..=0xb7 => d.or(decode_addr(opcode)),
-        0xb8..=0xbf => d.cp(decode_addr(opcode)),
-
-        // 0xc0
-        0xc0 => d.ret(Cond::NZ),
-        0xc1 => d.pop(Addr16::Reg16Dir(Reg16::BC)),
-        0xc2 => {
-            let imm = fetchw(d);
-            d.jp(Cond::NZ, Addr16::Imm(imm))
-        }
-        0xc3 => {
-            let imm = fetchw(d);
-            d.jp(Cond::None, Addr16::Imm(imm))
-        }
-        0xc4 => {
-            let imm = fetchw(d);
-            d.call(Cond::NZ, Addr16::Imm(imm))
-        }
-        0xc5 => d.push(Addr16::Reg16Dir(Reg16::BC)),
-        0xc6 => {
-            let imm = d.fetch();
-            d.add8(Addr8::Imm(imm))
-        }
-        0xc7 => d.rst(0x00),
-
-        0xc8 => d.ret(Cond::Z),
-        0xc9 => d.ret(Cond::None),
-        0xca => {
-            let imm = fetchw(d);
-            d.jp(Cond::Z, Addr16::Imm(imm))
-        }
-        0xcb => {
-            let extra = d.fetch();
-            let addr = decode_addr(extra);
-
-            match extra & 0xf8 {
-                0x00 => d.rlc(addr),
-                0x08 => d.rrc(addr),
-                0x10 => d.rl(addr),
-                0x18 => d.rr(addr),
-                0x20 => d.sla(addr),
-                0x28 => d.sra(addr),
-                0x30 => d.swap(addr),
-                0x38 => d.srl(addr),
-                0x40..=0x78 => d.bit((extra >> 3) & 0b111, addr),
-                0x80..=0xb8 => d.res((extra >> 3) & 0b111, addr),
-                0xc0..=0xf8 => d.set((extra >> 3) & 0b111, addr),
-                _ => panic!("logic error"),
-            }
-        }
-        0xcc => {
-            let imm = fetchw(d);
-            d.call(Cond::Z, Addr16::Imm(imm))
-        }
-        0xcd => {
-            let imm = fetchw(d);
-            d.call(Cond::None, Addr16::Imm(imm))
-        }
-        0xce => {
-            let imm = d.fetch();
-            d.adc(Addr8::Imm(imm))
-        }
-        0xcf => d.rst(0x08),
-
-        // 0xd0
-        0xd0 => d.ret(Cond::NC),
-        0xd1 => d.pop(Addr16::Reg16Dir(Reg16::DE)),
-        0xd2 => {
-            let imm = fetchw(d);
-            d.jp(Cond::NC, Addr16::Imm(imm))
-        }
-        /*0xd3 => d.nop(),*/
-        0xd4 => {
-            let imm = fetchw(d);
-            d.call(Cond::NC, Addr16::Imm(imm))
-        }
-        0xd5 => d.push(Addr16::Reg16Dir(Reg16::DE)),
-        0xd6 => {
-            let imm = d.fetch();
-            d.sub(Addr8::Imm(imm))
-        }
-        0xd7 => d.rst(0x10),
-
-        0xd8 => d.ret(Cond::C),
-        0xd9 => d.reti(),
-        0xda => {
-            let imm = fetchw(d);
-            d.jp(Cond::C, Addr16::Imm(imm))
-        }
-        /*0xdb => d.nop(),*/
-        0xdc => {
-            let imm = fetchw(d);
-            d.call(Cond::C, Addr16::Imm(imm))
-        }
-        /*0xdd => d.nop(),*/
-        0xde => {
-            let imm = d.fetch();
-            d.sbc(Addr8::Imm(imm))
-        }
-        0xdf => d.rst(0x18),
-
-        // 0xe0
-        0xe0 => {
-            let ind = d.fetch();
-            d.ldh(Addr8::Ind(ind), Addr8::Reg8Dir(Reg8::A))
-        }
-        0xe1 => d.pop(Addr16::Reg16Dir(Reg16::HL)),
-        0xe2 => d.ld8(Addr8::Reg8Ind(Reg8::C), Addr8::Reg8Dir(Reg8::A)),
-        /*0xe3 => d.nop(),*/
-        /*0xe4 => d.nop(),*/
-        0xe5 => d.push(Addr16::Reg16Dir(Reg16::HL)),
-        0xe6 => {
-            let imm = d.fetch();
-            d.and(Addr8::Imm(imm))
-        }
-        0xe7 => d.rst(0x20),
-
-        0xe8 => {
-            let imm = d.fetch();
-            d.addsp(imm as i8)
-        }
-        0xe9 => d.jp(Cond::None, Addr16::Reg16Dir(Reg16::HL)),
-        0xea => {
-            let ind = fetchw(d);
-            d.ld8(Addr8::Imm16Ind(ind), Addr8::Reg8Dir(Reg8::A))
-        }
-        /*0xeb => d.nop(),*/
-        /*0xec => d.nop(),*/
-        /*0xed => d.nop(),*/
-        0xee => {
-            let imm = d.fetch();
-            d.xor(Addr8::Imm(imm))
-        }
-        0xef => d.rst(0x28),
-
-        // 0xf0
-        0xf0 => {
-            let ind = d.fetch();
-            d.ldh(Addr8::Reg8Dir(Reg8::A), Addr8::Ind(ind))
-        }
-        0xf1 => d.pop(Addr16::Reg16Dir(Reg16::AF)),
-        0xf2 => d.ld8(Addr8::Reg8Dir(Reg8::A), Addr8::Reg8Ind(Reg8::C)),
-        0xf3 => d.di(),
-        /*0xf4 => d.nop(),*/
-        0xf5 => d.push(Addr16::Reg16Dir(Reg16::AF)),
-        0xf6 => {
-            let imm = d.fetch();
-            d.or(Addr8::Imm(imm))
-        }
-        0xf7 => d.rst(0x30),
-
-        0xf8 => {
-            let imm = d.fetch();
-            d.ldhl(imm as i8)
-        }
-        0xf9 => d.ld16(Addr16::Reg16Dir(Reg16::SP), Addr16::Reg16Dir(Reg16::HL)),
-        0xfa => {
-            let ind = fetchw(d);
-            d.ld8(Addr8::Reg8Dir(Reg8::A), Addr8::Imm16Ind(ind))
-        }
-        0xfb => d.ei(),
-        /*0xfc => d.nop(),*/
-        /*0xfd => d.nop(),*/
-        0xfe => {
-            let imm = d.fetch();
-            d.cp(Addr8::Imm(imm))
-        }
-        0xff => d.rst(0x38),
-
-        _ => d.undef(opcode),
     }
 }
 
@@ -726,18 +259,16 @@ impl Cpu {
             }
         }
 
-        let mut cpu_mem = CpuMem { cpu: self, mem };
-
         // Check for interrupts
-        if cpu_mem.cpu.ime {
-            let enabled_mask = cpu_mem.mem.loadb(0xffff);
-            let request_mask = cpu_mem.mem.loadb(0xff0f);
+        if self.ime {
+            let enabled_mask = mem.loadb(0xffff);
+            let request_mask = mem.loadb(0xff0f);
             let effective = enabled_mask & request_mask;
             // Get the lowest set bit, which is the IRQ with the highest priority
             let irq = effective.trailing_zeros();
             if irq < 5 {
                 // Valid IRQ (0-4)
-                cpu_mem.push(Addr16::Reg16Dir(Reg16::PC)); // Push PC
+                self.execute(Op::Push(Addr16::Reg16Dir(Reg16::PC)), mem); // Push PC
                 self.regs.pc = 0x40 + irq as u16 * 0x08; // Jump to ISR
                 self.ime = false; // Disable interrupts
                 mem.storeb(0xff0f, request_mask & !(1 << irq)); // Clear IRQ flag
@@ -746,7 +277,10 @@ impl Cpu {
             }
         }
 
-        let elapsed = decode(&mut cpu_mem);
+        let op = Op::decode(&mut CpuMem { cpu: self, mem });
+
+        let elapsed = self.execute(op, mem);
+
         self.cycles += u64::from(elapsed);
         elapsed
     }
@@ -808,6 +342,506 @@ impl Cpu {
         self.set_flag(CARRY_FLAG, (((sp & 0xff) + (rel & 0xff)) & 0x100) != 0);
         result
     }
+
+    // Opcode implementation.
+    //
+    // Returns number of elapsed cyles.
+    //
+    // Sources:
+    //   * http://www.z80.info/z80code.txt
+    //   * http://marc.rawer.de/Gameboy/Docs/GBCPUman.pdf
+    //   * http://www.zilog.com/docs/z80/um0080.pdf
+    fn execute(&mut self, op: Op, mem: &mut dyn Mem) -> u8 {
+        match op {
+            //
+            // Misc/control
+            //
+            Op::Nop => 4,
+
+            Op::Ei => {
+                self.ime = true;
+                4
+            }
+
+            Op::Di => {
+                self.ime = false;
+                4
+            }
+
+            Op::Halt => {
+                self.halted = true;
+                4
+            }
+
+            Op::Stop(_) => {
+                //panic!("instruction not implemented: stop")
+                4
+            }
+
+            //
+            // Jump/call
+            //
+            Op::Jp(cond, addr) => {
+                if cond.eval(&self.regs) {
+                    self.execute(Op::Ld16(Addr16::Reg16Dir(Reg16::PC), addr), mem);
+                }
+                4 + addr.cycles()
+            }
+
+            Op::Jr(cond, rel) => {
+                if cond.eval(&self.regs) {
+                    let addr = self.regs.pc as i16 + i16::from(rel);
+                    self.execute(
+                        Op::Ld16(Addr16::Reg16Dir(Reg16::PC), Addr16::Imm(addr as u16)),
+                        mem,
+                    );
+                }
+                8
+            }
+
+            Op::Call(cond, addr) => {
+                if cond.eval(&self.regs) {
+                    self.execute(Op::Push(Addr16::Reg16Dir(Reg16::PC)), mem);
+                    self.execute(Op::Ld16(Addr16::Reg16Dir(Reg16::PC), addr), mem);
+                }
+                12
+            }
+
+            Op::Rst(addr) => {
+                self.execute(Op::Call(Cond::None, Addr16::Imm(u16::from(addr))), mem);
+                32
+            }
+
+            Op::Ret(cond) => {
+                if cond.eval(&self.regs) {
+                    self.execute(Op::Pop(Addr16::Reg16Dir(Reg16::PC)), mem);
+                }
+                8
+            }
+
+            Op::Reti => {
+                self.execute(Op::Pop(Addr16::Reg16Dir(Reg16::PC)), mem);
+                self.execute(Op::Ei, mem);
+                8
+            }
+
+            //
+            // Load/store/move
+            //
+            Op::Ld8(dst, src) => {
+                let val = src.load(self, mem);
+                dst.store(self, mem, val);
+                4 + dst.cycles() + src.cycles()
+            }
+
+            Op::Ld16(dst, src) => {
+                let val = src.load(self, mem);
+                dst.store(self, mem, val);
+                4 + dst.cycles() + src.cycles()
+                // TODO: LD SP, HL takes 8 cycles
+            }
+
+            Op::Ldh(dst, src) => {
+                self.execute(Op::Ld8(dst, src), mem);
+                4 + dst.cycles() + src.cycles()
+            }
+
+            Op::Ldhl(rel) => {
+                let result = self.addsp_(rel);
+                self.regs.h = (result >> 8) as u8;
+                self.regs.l = (result & 0xff) as u8;
+                12
+            }
+
+            Op::Push(src) => {
+                self.regs.sp -= 2;
+                let val = src.load(self, mem);
+                mem.storew(self.regs.sp, val);
+                16 + src.cycles()
+            }
+
+            Op::Pop(dst) => {
+                let val = mem.loadw(self.regs.sp);
+                dst.store(self, mem, val);
+                self.regs.sp += 2;
+                12 + dst.cycles()
+            }
+
+            //
+            // Arithmetic/logic
+            //
+            Op::Add8(src) => {
+                let a = self.regs.a;
+                let b = src.load(self, mem);
+                self.add_(a, b, 0);
+
+                4 + src.cycles()
+            }
+
+            Op::Add16(dst, src) => {
+                let op1 = u32::from(dst.load(self, mem));
+                let op2 = u32::from(src.load(self, mem));
+                let result = op1 + op2;
+                dst.store(self, mem, result as u16);
+
+                self.set_flag(ADD_SUB_FLAG, false);
+                self.set_flag(
+                    HALF_CARRY_FLAG,
+                    (((op1 & 0xfff) + (op2 & 0xfff)) & 0x1000) != 0,
+                );
+                self.set_flag(CARRY_FLAG, (result & 0x1_0000) != 0);
+
+                8
+            }
+
+            Op::Addsp(rel) => {
+                self.regs.sp = self.addsp_(rel);
+
+                16
+            }
+
+            Op::Adc(src) => {
+                let a = self.regs.a;
+                let b = src.load(self, mem);
+                let c = (self.regs.f >> CARRY_OFFSET) & 1;
+                self.add_(a, b, c);
+
+                4 + src.cycles()
+            }
+
+            Op::Sub(src) => {
+                let a = self.regs.a;
+                let b = src.load(self, mem);
+                self.sub_(a, b, 0);
+
+                4 + src.cycles()
+            }
+
+            Op::Sbc(src) => {
+                let a = self.regs.a;
+                let b = src.load(self, mem);
+                let c = (self.regs.f >> CARRY_OFFSET) & 1;
+                self.sub_(a, b, c);
+
+                4 + src.cycles()
+            }
+
+            Op::Inc8(dst) => {
+                let val = dst.load(self, mem);
+                let result = val.wrapping_add(1);
+                dst.store(self, mem, result);
+
+                self.set_flag(ZERO_FLAG, result == 0);
+                self.set_flag(ADD_SUB_FLAG, false);
+                self.set_flag(HALF_CARRY_FLAG, val & 0xf == 0xf);
+                // Note: carry flag not affected
+
+                4 + 2 * dst.cycles()
+            }
+
+            Op::Inc16(dst) => {
+                let val = dst.load(self, mem);
+                dst.store(self, mem, val.wrapping_add(1));
+
+                8
+            }
+
+            Op::Dec8(dst) => {
+                let result = dst.load(self, mem).wrapping_sub(1);
+                dst.store(self, mem, result);
+
+                self.set_flag(ZERO_FLAG, result == 0);
+                self.set_flag(ADD_SUB_FLAG, true);
+                self.set_flag(HALF_CARRY_FLAG, result & 0xf == 0xf);
+                // Note: carry flag is not affected
+
+                4 + 2 * dst.cycles()
+            }
+
+            Op::Dec16(dst) => {
+                let val = dst.load(self, mem);
+                dst.store(self, mem, val.wrapping_sub(1));
+
+                8
+            }
+
+            Op::And(src) => {
+                self.regs.a &= src.load(self, mem);
+
+                let zero = self.regs.a == 0;
+                self.set_flag(ZERO_FLAG, zero);
+                self.set_flag(ADD_SUB_FLAG, false);
+                self.set_flag(HALF_CARRY_FLAG, true); // Yes, this is correct
+                self.set_flag(CARRY_FLAG, false);
+
+                4 + src.cycles()
+            }
+
+            Op::Or(src) => {
+                self.regs.a |= src.load(self, mem);
+
+                let zero = self.regs.a == 0;
+                self.set_flag(ZERO_FLAG, zero);
+                self.set_flag(ADD_SUB_FLAG, false);
+                self.set_flag(HALF_CARRY_FLAG, false);
+                self.set_flag(CARRY_FLAG, false);
+
+                4 + src.cycles()
+            }
+
+            Op::Xor(src) => {
+                self.regs.a ^= src.load(self, mem);
+
+                let zero = self.regs.a == 0;
+                self.set_flag(ZERO_FLAG, zero);
+                self.set_flag(ADD_SUB_FLAG, false);
+                self.set_flag(HALF_CARRY_FLAG, false);
+                self.set_flag(CARRY_FLAG, false);
+
+                4 + src.cycles()
+            }
+
+            Op::Cp(src) => {
+                // TODO: Optimize
+                let a = self.regs.a;
+                let b = src.load(self, mem);
+                self.sub_(a, b, 0);
+                self.regs.a = a;
+
+                4 + src.cycles()
+            }
+
+            Op::Cpl => {
+                self.regs.a = !self.regs.a;
+
+                self.set_flag(ADD_SUB_FLAG, true);
+                self.set_flag(HALF_CARRY_FLAG, true);
+
+                4
+            }
+
+            Op::Scf => {
+                self.set_flag(ADD_SUB_FLAG, false);
+                self.set_flag(HALF_CARRY_FLAG, false);
+                self.set_flag(CARRY_FLAG, true);
+
+                4
+            }
+
+            Op::Ccf => {
+                self.regs.f ^= CARRY_FLAG;
+                self.set_flag(ADD_SUB_FLAG, false);
+                self.set_flag(HALF_CARRY_FLAG, false);
+
+                4
+            }
+
+            Op::Daa => {
+                // http://forums.nesdev.com/viewtopic.php?t=9088
+                let mut a = u16::from(self.regs.a);
+
+                if self.get_flag(ADD_SUB_FLAG) {
+                    if self.get_flag(HALF_CARRY_FLAG) {
+                        a = a.wrapping_sub(0x06) & 0xff;
+                    }
+                    if self.get_flag(CARRY_FLAG) {
+                        a = a.wrapping_sub(0x60);
+                    }
+                } else {
+                    if self.get_flag(HALF_CARRY_FLAG) || (a & 0xf) > 9 {
+                        a = a.wrapping_add(0x06);
+                    }
+                    if self.get_flag(CARRY_FLAG) || a > 0x9f {
+                        a = a.wrapping_add(0x60);
+                    }
+                }
+
+                self.set_flag(HALF_CARRY_FLAG, false);
+                self.set_flag(ZERO_FLAG, false);
+
+                if (a & 0x100) != 0 {
+                    self.set_flag(CARRY_FLAG, true);
+                }
+
+                a &= 0xff;
+
+                if a == 0 {
+                    self.set_flag(ZERO_FLAG, true);
+                }
+
+                self.regs.a = a as u8;
+
+                4
+            }
+
+            //
+            // Rotation/shift/bit
+            //
+            Op::Rlca => {
+                self.execute(Op::Rlc(Addr8::Reg8Dir(Reg8::A)), mem);
+
+                self.set_flag(ZERO_FLAG, false);
+
+                4
+            }
+
+            Op::Rla => {
+                self.execute(Op::Rl(Addr8::Reg8Dir(Reg8::A)), mem);
+
+                self.set_flag(ZERO_FLAG, false);
+
+                4
+            }
+
+            Op::Rrca => {
+                self.execute(Op::Rrc(Addr8::Reg8Dir(Reg8::A)), mem);
+
+                self.set_flag(ZERO_FLAG, false);
+
+                4
+            }
+
+            Op::Rra => {
+                self.execute(Op::Rr(Addr8::Reg8Dir(Reg8::A)), mem);
+
+                self.set_flag(ZERO_FLAG, false);
+
+                4
+            }
+
+            Op::Rlc(dst) => {
+                let val = dst.load(self, mem);
+                dst.store(self, mem, (val << 1) | ((val & 0x80) >> 7));
+
+                self.set_flag(ZERO_FLAG, val == 0); // zero iff zero before
+                self.set_flag(ADD_SUB_FLAG, false);
+                self.set_flag(HALF_CARRY_FLAG, false);
+                self.set_flag(CARRY_FLAG, (val & 0x80) != 0);
+
+                8 + 2 * dst.cycles()
+            }
+
+            Op::Rl(dst) => {
+                let val = dst.load(self, mem);
+                let result = (val << 1) | ((self.regs.f & CARRY_FLAG) >> CARRY_OFFSET);
+                dst.store(self, mem, result);
+
+                self.set_flag(ZERO_FLAG, result == 0);
+                self.set_flag(ADD_SUB_FLAG, false);
+                self.set_flag(HALF_CARRY_FLAG, false);
+                self.set_flag(CARRY_FLAG, (val & 0x80) != 0);
+
+                8 + 2 * dst.cycles()
+            }
+
+            Op::Rrc(dst) => {
+                let val = dst.load(self, mem);
+                dst.store(self, mem, (val >> 1) | ((val & 0x01) << 7));
+
+                self.set_flag(ZERO_FLAG, val == 0); // zero iff zero before
+                self.set_flag(ADD_SUB_FLAG, false);
+                self.set_flag(HALF_CARRY_FLAG, false);
+                self.set_flag(CARRY_FLAG, (val & 0x01) != 0);
+
+                8 + 2 * dst.cycles()
+            }
+
+            Op::Rr(dst) => {
+                let val = dst.load(self, mem);
+                let result = (val >> 1) | ((self.regs.f & CARRY_FLAG) << (7 - CARRY_OFFSET));
+                dst.store(self, mem, result);
+
+                self.set_flag(ZERO_FLAG, result == 0);
+                self.set_flag(ADD_SUB_FLAG, false);
+                self.set_flag(HALF_CARRY_FLAG, false);
+                self.set_flag(CARRY_FLAG, (val & 0x01) != 0);
+
+                8 + 2 * dst.cycles()
+            }
+
+            Op::Sla(dst) => {
+                let val = dst.load(self, mem);
+                let result = val << 1;
+                dst.store(self, mem, result);
+
+                self.set_flag(ZERO_FLAG, result == 0);
+                self.set_flag(ADD_SUB_FLAG, false);
+                self.set_flag(HALF_CARRY_FLAG, false);
+                self.set_flag(CARRY_FLAG, (val & 0x80) != 0);
+
+                8 + 2 * dst.cycles()
+            }
+
+            Op::Sra(dst) => {
+                let val = dst.load(self, mem);
+                let result = (val & 0x80) | (val >> 1);
+                dst.store(self, mem, result);
+
+                self.set_flag(ZERO_FLAG, result == 0);
+                self.set_flag(ADD_SUB_FLAG, false);
+                self.set_flag(HALF_CARRY_FLAG, false);
+                self.set_flag(CARRY_FLAG, (val & 0x01) != 0);
+
+                8 + 2 * dst.cycles()
+            }
+
+            Op::Srl(dst) => {
+                let val = dst.load(self, mem);
+                let result = val >> 1;
+                dst.store(self, mem, result);
+
+                self.set_flag(ZERO_FLAG, result == 0);
+                self.set_flag(ADD_SUB_FLAG, false);
+                self.set_flag(HALF_CARRY_FLAG, false);
+                self.set_flag(CARRY_FLAG, (val & 0x01) != 0);
+
+                8 + 2 * dst.cycles()
+            }
+
+            Op::Bit(bit, src) => {
+                let val = src.load(self, mem);
+
+                self.set_flag(ZERO_FLAG, (val & (1 << bit)) == 0);
+                self.set_flag(ADD_SUB_FLAG, false);
+                self.set_flag(HALF_CARRY_FLAG, true);
+
+                8 + src.cycles() // TODO: BIT b, (HL) takes 16 cycles
+            }
+
+            Op::Res(bit, dst) => {
+                let val = dst.load(self, mem);
+
+                dst.store(self, mem, val & !(1 << bit));
+
+                8 + 2 * dst.cycles()
+            }
+
+            Op::Set(bit, dst) => {
+                let val = dst.load(self, mem);
+
+                dst.store(self, mem, val | (1 << bit));
+
+                8 + 2 * dst.cycles()
+            }
+
+            Op::Swap(dst) => {
+                let val = dst.load(self, mem);
+                dst.store(self, mem, (val >> 4) | (val << 4));
+
+                self.set_flag(ZERO_FLAG, val == 0); // zero iff zero before
+                self.set_flag(ADD_SUB_FLAG, false);
+                self.set_flag(HALF_CARRY_FLAG, false);
+                self.set_flag(CARRY_FLAG, false);
+
+                8 + 2 * dst.cycles()
+            }
+
+            // Undefined/illegal
+            Op::Undef(opcode) => {
+                panic!("illegal instruction: {:02X}", opcode)
+            }
+        }
+    }
 }
 
 struct CpuMem<'a> {
@@ -815,510 +849,10 @@ struct CpuMem<'a> {
     mem: &'a mut dyn Mem,
 }
 
-// Opcode implementation.
-//
-// Returns number of elapsed cyles.
-//
-// Sources:
-//   * http://www.z80.info/z80code.txt
-//   * http://marc.rawer.de/Gameboy/Docs/GBCPUman.pdf
-//   * http://www.zilog.com/docs/z80/um0080.pdf
-impl<'a> Decoder<u8> for CpuMem<'a> {
+impl<'a> Fetch for CpuMem<'a> {
     fn fetch(&mut self) -> u8 {
         let result = self.mem.loadb(self.cpu.regs.pc);
         self.cpu.regs.pc += 1;
         result
-    }
-
-    //
-    // Misc/control
-    //
-
-    fn nop(&mut self) -> u8 {
-        4
-    }
-
-    fn ei(&mut self) -> u8 {
-        self.cpu.ime = true;
-        4
-    }
-
-    fn di(&mut self) -> u8 {
-        self.cpu.ime = false;
-        4
-    }
-
-    fn halt(&mut self) -> u8 {
-        self.cpu.halted = true;
-        4
-    }
-
-    fn stop(&mut self, _: u8) -> u8 {
-        //panic!("instruction not implemented: stop")
-        4
-    }
-
-    //
-    // Jump/call
-    //
-
-    fn jp(&mut self, cond: Cond, addr: Addr16) -> u8 {
-        if cond.eval(&self.cpu.regs) {
-            self.ld16(Addr16::Reg16Dir(Reg16::PC), addr);
-        }
-        4 + addr.cycles()
-    }
-
-    fn jr(&mut self, cond: Cond, rel: i8) -> u8 {
-        if cond.eval(&self.cpu.regs) {
-            let addr = self.cpu.regs.pc as i16 + i16::from(rel);
-            self.ld16(Addr16::Reg16Dir(Reg16::PC), Addr16::Imm(addr as u16));
-        }
-        8
-    }
-
-    fn call(&mut self, cond: Cond, addr: Addr16) -> u8 {
-        if cond.eval(&self.cpu.regs) {
-            self.push(Addr16::Reg16Dir(Reg16::PC));
-            self.ld16(Addr16::Reg16Dir(Reg16::PC), addr);
-        }
-        12
-    }
-
-    fn rst(&mut self, addr: u8) -> u8 {
-        self.call(Cond::None, Addr16::Imm(u16::from(addr)));
-        32
-    }
-
-    fn ret(&mut self, cond: Cond) -> u8 {
-        if cond.eval(&self.cpu.regs) {
-            self.pop(Addr16::Reg16Dir(Reg16::PC));
-        }
-        8
-    }
-
-    fn reti(&mut self) -> u8 {
-        self.pop(Addr16::Reg16Dir(Reg16::PC));
-        self.ei();
-        8
-    }
-
-    //
-    // Load/store/move
-    //
-
-    fn ld8(&mut self, dst: Addr8, src: Addr8) -> u8 {
-        let val = src.load(self);
-        dst.store(self, val);
-        4 + dst.cycles() + src.cycles()
-    }
-
-    fn ld16(&mut self, dst: Addr16, src: Addr16) -> u8 {
-        let val = src.load(self);
-        dst.store(self, val);
-        4 + dst.cycles() + src.cycles()
-        // TODO: LD SP, HL takes 8 cycles
-    }
-
-    fn ldh(&mut self, dst: Addr8, src: Addr8) -> u8 {
-        self.ld8(dst, src);
-        4 + dst.cycles() + src.cycles()
-    }
-
-    fn ldhl(&mut self, rel: i8) -> u8 {
-        let result = self.cpu.addsp_(rel);
-        self.cpu.regs.h = (result >> 8) as u8;
-        self.cpu.regs.l = (result & 0xff) as u8;
-        12
-    }
-
-    fn push(&mut self, src: Addr16) -> u8 {
-        self.cpu.regs.sp -= 2;
-        let val = src.load(self);
-        self.mem.storew(self.cpu.regs.sp, val);
-        16 + src.cycles()
-    }
-
-    fn pop(&mut self, dst: Addr16) -> u8 {
-        let val = self.mem.loadw(self.cpu.regs.sp);
-        dst.store(self, val);
-        self.cpu.regs.sp += 2;
-        12 + dst.cycles()
-    }
-
-    //
-    // Arithmetic/logic
-    //
-
-    fn add8(&mut self, src: Addr8) -> u8 {
-        let a = self.cpu.regs.a;
-        let b = src.load(self);
-        self.cpu.add_(a, b, 0);
-
-        4 + src.cycles()
-    }
-
-    fn add16(&mut self, dst: Addr16, src: Addr16) -> u8 {
-        let op1 = u32::from(dst.load(self));
-        let op2 = u32::from(src.load(self));
-        let result = op1 + op2;
-        dst.store(self, result as u16);
-
-        self.cpu.set_flag(ADD_SUB_FLAG, false);
-        self.cpu.set_flag(
-            HALF_CARRY_FLAG,
-            (((op1 & 0xfff) + (op2 & 0xfff)) & 0x1000) != 0,
-        );
-        self.cpu.set_flag(CARRY_FLAG, (result & 0x1_0000) != 0);
-
-        8
-    }
-
-    fn addsp(&mut self, rel: i8) -> u8 {
-        self.cpu.regs.sp = self.cpu.addsp_(rel);
-
-        16
-    }
-
-    fn adc(&mut self, src: Addr8) -> u8 {
-        let a = self.cpu.regs.a;
-        let b = src.load(self);
-        let c = (self.cpu.regs.f >> CARRY_OFFSET) & 1;
-        self.cpu.add_(a, b, c);
-
-        4 + src.cycles()
-    }
-
-    fn sub(&mut self, src: Addr8) -> u8 {
-        let a = self.cpu.regs.a;
-        let b = src.load(self);
-        self.cpu.sub_(a, b, 0);
-
-        4 + src.cycles()
-    }
-
-    fn sbc(&mut self, src: Addr8) -> u8 {
-        let a = self.cpu.regs.a;
-        let b = src.load(self);
-        let c = (self.cpu.regs.f >> CARRY_OFFSET) & 1;
-        self.cpu.sub_(a, b, c);
-
-        4 + src.cycles()
-    }
-
-    fn inc8(&mut self, dst: Addr8) -> u8 {
-        let val = dst.load(self);
-        let result = val.wrapping_add(1);
-        dst.store(self, result);
-
-        self.cpu.set_flag(ZERO_FLAG, result == 0);
-        self.cpu.set_flag(ADD_SUB_FLAG, false);
-        self.cpu.set_flag(HALF_CARRY_FLAG, val & 0xf == 0xf);
-        // Note: carry flag not affected
-
-        4 + 2 * dst.cycles()
-    }
-
-    fn inc16(&mut self, dst: Addr16) -> u8 {
-        let val = dst.load(self);
-        dst.store(self, val.wrapping_add(1));
-
-        8
-    }
-
-    fn dec8(&mut self, dst: Addr8) -> u8 {
-        let result = dst.load(self).wrapping_sub(1);
-        dst.store(self, result);
-
-        self.cpu.set_flag(ZERO_FLAG, result == 0);
-        self.cpu.set_flag(ADD_SUB_FLAG, true);
-        self.cpu.set_flag(HALF_CARRY_FLAG, result & 0xf == 0xf);
-        // Note: carry flag is not affected
-
-        4 + 2 * dst.cycles()
-    }
-
-    fn dec16(&mut self, dst: Addr16) -> u8 {
-        let val = dst.load(self);
-        dst.store(self, val.wrapping_sub(1));
-
-        8
-    }
-
-    fn and(&mut self, src: Addr8) -> u8 {
-        self.cpu.regs.a &= src.load(self);
-
-        let zero = self.cpu.regs.a == 0;
-        self.cpu.set_flag(ZERO_FLAG, zero);
-        self.cpu.set_flag(ADD_SUB_FLAG, false);
-        self.cpu.set_flag(HALF_CARRY_FLAG, true); // Yes, this is correct
-        self.cpu.set_flag(CARRY_FLAG, false);
-
-        4 + src.cycles()
-    }
-
-    fn or(&mut self, src: Addr8) -> u8 {
-        self.cpu.regs.a |= src.load(self);
-
-        let zero = self.cpu.regs.a == 0;
-        self.cpu.set_flag(ZERO_FLAG, zero);
-        self.cpu.set_flag(ADD_SUB_FLAG, false);
-        self.cpu.set_flag(HALF_CARRY_FLAG, false);
-        self.cpu.set_flag(CARRY_FLAG, false);
-
-        4 + src.cycles()
-    }
-
-    fn xor(&mut self, src: Addr8) -> u8 {
-        self.cpu.regs.a ^= src.load(self);
-
-        let zero = self.cpu.regs.a == 0;
-        self.cpu.set_flag(ZERO_FLAG, zero);
-        self.cpu.set_flag(ADD_SUB_FLAG, false);
-        self.cpu.set_flag(HALF_CARRY_FLAG, false);
-        self.cpu.set_flag(CARRY_FLAG, false);
-
-        4 + src.cycles()
-    }
-
-    fn cp(&mut self, src: Addr8) -> u8 {
-        // TODO: Optimize
-        let a = self.cpu.regs.a;
-        let b = src.load(self);
-        self.cpu.sub_(a, b, 0);
-        self.cpu.regs.a = a;
-
-        4 + src.cycles()
-    }
-
-    fn cpl(&mut self) -> u8 {
-        self.cpu.regs.a = !self.cpu.regs.a;
-
-        self.cpu.set_flag(ADD_SUB_FLAG, true);
-        self.cpu.set_flag(HALF_CARRY_FLAG, true);
-
-        4
-    }
-
-    fn scf(&mut self) -> u8 {
-        self.cpu.set_flag(ADD_SUB_FLAG, false);
-        self.cpu.set_flag(HALF_CARRY_FLAG, false);
-        self.cpu.set_flag(CARRY_FLAG, true);
-
-        4
-    }
-
-    fn ccf(&mut self) -> u8 {
-        self.cpu.regs.f ^= CARRY_FLAG;
-        self.cpu.set_flag(ADD_SUB_FLAG, false);
-        self.cpu.set_flag(HALF_CARRY_FLAG, false);
-
-        4
-    }
-
-    fn daa(&mut self) -> u8 {
-        // http://forums.nesdev.com/viewtopic.php?t=9088
-        let mut a = u16::from(self.cpu.regs.a);
-
-        if self.cpu.get_flag(ADD_SUB_FLAG) {
-            if self.cpu.get_flag(HALF_CARRY_FLAG) {
-                a = a.wrapping_sub(0x06) & 0xff;
-            }
-            if self.cpu.get_flag(CARRY_FLAG) {
-                a = a.wrapping_sub(0x60);
-            }
-        } else {
-            if self.cpu.get_flag(HALF_CARRY_FLAG) || (a & 0xf) > 9 {
-                a = a.wrapping_add(0x06);
-            }
-            if self.cpu.get_flag(CARRY_FLAG) || a > 0x9f {
-                a = a.wrapping_add(0x60);
-            }
-        }
-
-        self.cpu.set_flag(HALF_CARRY_FLAG, false);
-        self.cpu.set_flag(ZERO_FLAG, false);
-
-        if (a & 0x100) != 0 {
-            self.cpu.set_flag(CARRY_FLAG, true);
-        }
-
-        a &= 0xff;
-
-        if a == 0 {
-            self.cpu.set_flag(ZERO_FLAG, true);
-        }
-
-        self.cpu.regs.a = a as u8;
-
-        4
-    }
-
-    //
-    // Rotation/shift/bit
-    //
-
-    fn rlca(&mut self) -> u8 {
-        self.rlc(Addr8::Reg8Dir(Reg8::A));
-
-        self.cpu.set_flag(ZERO_FLAG, false);
-
-        4
-    }
-
-    fn rla(&mut self) -> u8 {
-        self.rl(Addr8::Reg8Dir(Reg8::A));
-
-        self.cpu.set_flag(ZERO_FLAG, false);
-
-        4
-    }
-
-    fn rrca(&mut self) -> u8 {
-        self.rrc(Addr8::Reg8Dir(Reg8::A));
-
-        self.cpu.set_flag(ZERO_FLAG, false);
-
-        4
-    }
-
-    fn rra(&mut self) -> u8 {
-        self.rr(Addr8::Reg8Dir(Reg8::A));
-
-        self.cpu.set_flag(ZERO_FLAG, false);
-
-        4
-    }
-
-    fn rlc(&mut self, dst: Addr8) -> u8 {
-        let val = dst.load(self);
-        dst.store(self, (val << 1) | ((val & 0x80) >> 7));
-
-        self.cpu.set_flag(ZERO_FLAG, val == 0); // zero iff zero before
-        self.cpu.set_flag(ADD_SUB_FLAG, false);
-        self.cpu.set_flag(HALF_CARRY_FLAG, false);
-        self.cpu.set_flag(CARRY_FLAG, (val & 0x80) != 0);
-
-        8 + 2 * dst.cycles()
-    }
-
-    fn rl(&mut self, dst: Addr8) -> u8 {
-        let val = dst.load(self);
-        let result = (val << 1) | ((self.cpu.regs.f & CARRY_FLAG) >> CARRY_OFFSET);
-        dst.store(self, result);
-
-        self.cpu.set_flag(ZERO_FLAG, result == 0);
-        self.cpu.set_flag(ADD_SUB_FLAG, false);
-        self.cpu.set_flag(HALF_CARRY_FLAG, false);
-        self.cpu.set_flag(CARRY_FLAG, (val & 0x80) != 0);
-
-        8 + 2 * dst.cycles()
-    }
-
-    fn rrc(&mut self, dst: Addr8) -> u8 {
-        let val = dst.load(self);
-        dst.store(self, (val >> 1) | ((val & 0x01) << 7));
-
-        self.cpu.set_flag(ZERO_FLAG, val == 0); // zero iff zero before
-        self.cpu.set_flag(ADD_SUB_FLAG, false);
-        self.cpu.set_flag(HALF_CARRY_FLAG, false);
-        self.cpu.set_flag(CARRY_FLAG, (val & 0x01) != 0);
-
-        8 + 2 * dst.cycles()
-    }
-
-    fn rr(&mut self, dst: Addr8) -> u8 {
-        let val = dst.load(self);
-        let result = (val >> 1) | ((self.cpu.regs.f & CARRY_FLAG) << (7 - CARRY_OFFSET));
-        dst.store(self, result);
-
-        self.cpu.set_flag(ZERO_FLAG, result == 0);
-        self.cpu.set_flag(ADD_SUB_FLAG, false);
-        self.cpu.set_flag(HALF_CARRY_FLAG, false);
-        self.cpu.set_flag(CARRY_FLAG, (val & 0x01) != 0);
-
-        8 + 2 * dst.cycles()
-    }
-
-    fn sla(&mut self, dst: Addr8) -> u8 {
-        let val = dst.load(self);
-        let result = val << 1;
-        dst.store(self, result);
-
-        self.cpu.set_flag(ZERO_FLAG, result == 0);
-        self.cpu.set_flag(ADD_SUB_FLAG, false);
-        self.cpu.set_flag(HALF_CARRY_FLAG, false);
-        self.cpu.set_flag(CARRY_FLAG, (val & 0x80) != 0);
-
-        8 + 2 * dst.cycles()
-    }
-
-    fn sra(&mut self, dst: Addr8) -> u8 {
-        let val = dst.load(self);
-        let result = (val & 0x80) | (val >> 1);
-        dst.store(self, result);
-
-        self.cpu.set_flag(ZERO_FLAG, result == 0);
-        self.cpu.set_flag(ADD_SUB_FLAG, false);
-        self.cpu.set_flag(HALF_CARRY_FLAG, false);
-        self.cpu.set_flag(CARRY_FLAG, (val & 0x01) != 0);
-
-        8 + 2 * dst.cycles()
-    }
-
-    fn srl(&mut self, dst: Addr8) -> u8 {
-        let val = dst.load(self);
-        let result = val >> 1;
-        dst.store(self, result);
-
-        self.cpu.set_flag(ZERO_FLAG, result == 0);
-        self.cpu.set_flag(ADD_SUB_FLAG, false);
-        self.cpu.set_flag(HALF_CARRY_FLAG, false);
-        self.cpu.set_flag(CARRY_FLAG, (val & 0x01) != 0);
-
-        8 + 2 * dst.cycles()
-    }
-
-    fn bit(&mut self, bit: u8, src: Addr8) -> u8 {
-        let val = src.load(self);
-
-        self.cpu.set_flag(ZERO_FLAG, (val & (1 << bit)) == 0);
-        self.cpu.set_flag(ADD_SUB_FLAG, false);
-        self.cpu.set_flag(HALF_CARRY_FLAG, true);
-
-        8 + src.cycles() // TODO: BIT b, (HL) takes 16 cycles
-    }
-
-    fn res(&mut self, bit: u8, dst: Addr8) -> u8 {
-        let val = dst.load(self);
-
-        dst.store(self, val & !(1 << bit));
-
-        8 + 2 * dst.cycles()
-    }
-
-    fn set(&mut self, bit: u8, dst: Addr8) -> u8 {
-        let val = dst.load(self);
-
-        dst.store(self, val | (1 << bit));
-
-        8 + 2 * dst.cycles()
-    }
-
-    fn swap(&mut self, dst: Addr8) -> u8 {
-        let val = dst.load(self);
-        dst.store(self, (val >> 4) | (val << 4));
-
-        self.cpu.set_flag(ZERO_FLAG, val == 0); // zero iff zero before
-        self.cpu.set_flag(ADD_SUB_FLAG, false);
-        self.cpu.set_flag(HALF_CARRY_FLAG, false);
-        self.cpu.set_flag(CARRY_FLAG, false);
-
-        8 + 2 * dst.cycles()
-    }
-
-    // Undefined/illegal
-    fn undef(&mut self, opcode: u8) -> u8 {
-        panic!("illegal instruction: {:02X}", opcode)
     }
 }

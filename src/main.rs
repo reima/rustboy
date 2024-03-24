@@ -17,6 +17,7 @@ mod cpu;
 mod debug;
 mod disasm;
 mod gameboy;
+mod instr;
 mod interrupt;
 mod joypad;
 mod mem;
@@ -133,7 +134,7 @@ fn main() {
         };
         while d.pc <= 0x7fff {
             let pc = d.pc;
-            println!("${:04X}\t{}", pc, cpu::decode(&mut d));
+            println!("${:04X}\t{}", pc, d.disasm());
         }
         return;
     }

@@ -1,9 +1,82 @@
-use crate::cpu::{Addr16, Addr8, Cond, Decoder};
-use crate::mem;
+use crate::{
+    instr::{Addr16, Addr8, Cond, Fetch, Op},
+    mem,
+};
 
 pub struct Disasm<'a> {
     pub mem: &'a dyn mem::Mem,
     pub pc: u16,
+}
+
+impl<'a> Disasm<'a> {
+    pub fn disasm(&mut self) -> String {
+        let op = Op::decode(self);
+
+        match op {
+            // Misc/control
+            Op::Nop => "NOP".to_string(),
+            Op::Ei => "EI".to_string(),
+            Op::Di => "DI".to_string(),
+            Op::Halt => "HALT".to_string(),
+            Op::Stop(val) => format!("STOP {}", val),
+
+            // Jump/call
+            Op::Jp(cond, addr) => unary16(with_cond("JP", cond).as_ref(), addr),
+            Op::Jr(cond, rel) => format!("{} {}", with_cond("JR", cond), rel),
+            Op::Call(cond, addr) => unary16(with_cond("CALL", cond).as_ref(), addr),
+            Op::Rst(addr) => format!("RST ${:02X}", addr),
+            Op::Ret(cond) => format!("RET {}", cond_to_str(cond)),
+            Op::Reti => "RETI".to_string(),
+
+            // Load/store/move
+            Op::Ld8(dst, src) => binary8("LD", dst, src),
+            Op::Ld16(dst, src) => binary16("LD", dst, src),
+            Op::Ldh(dst, src) => binary8("LDH", dst, src),
+            Op::Ldhl(rel) => format!("LDHL SP, {}", rel),
+            Op::Push(src) => unary16("PUSH", src),
+            Op::Pop(dst) => unary16("POP", dst),
+
+            // Arithmetic/logic
+            Op::Add8(src) => unary8("ADD A,", src),
+            Op::Add16(dst, src) => binary16("ADD", dst, src),
+            Op::Addsp(rel) => format!("ADD SP, {}", rel),
+            Op::Adc(src) => unary8("ADC A,", src),
+            Op::Sub(src) => unary8("SUB", src),
+            Op::Sbc(src) => unary8("SBC A,", src),
+            Op::Inc8(dst) => unary8("INC", dst),
+            Op::Inc16(dst) => unary16("INC", dst),
+            Op::Dec8(dst) => unary8("DEC", dst),
+            Op::Dec16(dst) => unary16("DEC", dst),
+            Op::And(src) => unary8("AND", src),
+            Op::Or(src) => unary8("OR", src),
+            Op::Xor(src) => unary8("XOR", src),
+            Op::Cp(src) => unary8("CP", src),
+            Op::Cpl => "CPL".to_string(),
+            Op::Scf => "SCF".to_string(),
+            Op::Ccf => "CCF".to_string(),
+            Op::Daa => "DAA".to_string(),
+
+            // Rotation/shift/bit
+            Op::Rlca => "RLCA".to_string(),
+            Op::Rla => "RLA".to_string(),
+            Op::Rrca => "RRCA".to_string(),
+            Op::Rra => "RRA".to_string(),
+            Op::Rlc(dst) => unary8("RLC", dst),
+            Op::Rl(dst) => unary8("RL", dst),
+            Op::Rrc(dst) => unary8("RRC", dst),
+            Op::Rr(dst) => unary8("RR", dst),
+            Op::Sla(dst) => unary8("SLA", dst),
+            Op::Sra(dst) => unary8("SRA", dst),
+            Op::Srl(dst) => unary8("SRL", dst),
+            Op::Bit(bit, src) => format!("BIT {}, {}", bit, addr8_to_str(src)),
+            Op::Res(bit, dst) => format!("RES {}, {}", bit, addr8_to_str(dst)),
+            Op::Set(bit, dst) => format!("SET {}, {}", bit, addr8_to_str(dst)),
+            Op::Swap(dst) => unary8("SWAP", dst),
+
+            // Undefined/illegal
+            Op::Undef(opcode) => format!("UNDEFINED ${:02X}", opcode),
+        }
+    }
 }
 
 fn addr16_to_str(addr: Addr16) -> String {
@@ -70,191 +143,10 @@ fn binary16(mnemonic: &str, addr1: Addr16, addr2: Addr16) -> String {
     )
 }
 
-impl<'a> Decoder<String> for Disasm<'a> {
+impl<'a> Fetch for Disasm<'a> {
     fn fetch(&mut self) -> u8 {
         let result = self.mem.loadb(self.pc);
         self.pc += 1;
         result
-    }
-
-    // Misc/control
-    fn nop(&mut self) -> String {
-        "NOP".to_string()
-    }
-
-    fn ei(&mut self) -> String {
-        "EI".to_string()
-    }
-    fn di(&mut self) -> String {
-        "DI".to_string()
-    }
-
-    fn halt(&mut self) -> String {
-        "HALT".to_string()
-    }
-    fn stop(&mut self, val: u8) -> String {
-        format!("STOP {}", val)
-    }
-
-    // Jump/call
-    fn jp(&mut self, cond: Cond, addr: Addr16) -> String {
-        unary16(with_cond("JP", cond).as_ref(), addr)
-    }
-    fn jr(&mut self, cond: Cond, rel: i8) -> String {
-        format!("{} {}", with_cond("JR", cond), rel)
-    }
-
-    fn call(&mut self, cond: Cond, addr: Addr16) -> String {
-        unary16(with_cond("CALL", cond).as_ref(), addr)
-    }
-    fn rst(&mut self, addr: u8) -> String {
-        format!("RST ${:02X}", addr)
-    }
-
-    fn ret(&mut self, cond: Cond) -> String {
-        format!("RET {}", cond_to_str(cond))
-    }
-    fn reti(&mut self) -> String {
-        "RETI".to_string()
-    }
-
-    // Load/store/move
-    fn ld8(&mut self, dst: Addr8, src: Addr8) -> String {
-        binary8("LD", dst, src)
-    }
-    fn ld16(&mut self, dst: Addr16, src: Addr16) -> String {
-        binary16("LD", dst, src)
-    }
-    fn ldh(&mut self, dst: Addr8, src: Addr8) -> String {
-        binary8("LDH", dst, src)
-    }
-    fn ldhl(&mut self, rel: i8) -> String {
-        format!("LDHL SP, {}", rel)
-    }
-
-    fn push(&mut self, src: Addr16) -> String {
-        unary16("PUSH", src)
-    }
-    fn pop(&mut self, dst: Addr16) -> String {
-        unary16("POP", dst)
-    }
-
-    // Arithmetic/logic
-    fn add8(&mut self, src: Addr8) -> String {
-        unary8("ADD A,", src)
-    }
-    fn add16(&mut self, dst: Addr16, src: Addr16) -> String {
-        binary16("ADD", dst, src)
-    }
-    fn addsp(&mut self, rel: i8) -> String {
-        format!("ADD SP, {}", rel)
-    }
-    fn adc(&mut self, src: Addr8) -> String {
-        unary8("ADC A,", src)
-    }
-
-    fn sub(&mut self, src: Addr8) -> String {
-        unary8("SUB", src)
-    }
-    fn sbc(&mut self, src: Addr8) -> String {
-        unary8("SBC A,", src)
-    }
-
-    fn inc8(&mut self, dst: Addr8) -> String {
-        unary8("INC", dst)
-    }
-    fn inc16(&mut self, dst: Addr16) -> String {
-        unary16("INC", dst)
-    }
-    fn dec8(&mut self, dst: Addr8) -> String {
-        unary8("DEC", dst)
-    }
-    fn dec16(&mut self, dst: Addr16) -> String {
-        unary16("DEC", dst)
-    }
-
-    fn and(&mut self, src: Addr8) -> String {
-        unary8("AND", src)
-    }
-    fn or(&mut self, src: Addr8) -> String {
-        unary8("OR", src)
-    }
-    fn xor(&mut self, src: Addr8) -> String {
-        unary8("XOR", src)
-    }
-
-    fn cp(&mut self, src: Addr8) -> String {
-        unary8("CP", src)
-    }
-
-    fn cpl(&mut self) -> String {
-        "CPL".to_string()
-    }
-
-    fn scf(&mut self) -> String {
-        "SCF".to_string()
-    }
-    fn ccf(&mut self) -> String {
-        "CCF".to_string()
-    }
-
-    fn daa(&mut self) -> String {
-        "DAA".to_string()
-    }
-
-    // Rotation/shift/bit
-    fn rlca(&mut self) -> String {
-        "RLCA".to_string()
-    }
-    fn rla(&mut self) -> String {
-        "RLA".to_string()
-    }
-    fn rrca(&mut self) -> String {
-        "RRCA".to_string()
-    }
-    fn rra(&mut self) -> String {
-        "RRA".to_string()
-    }
-
-    fn rlc(&mut self, dst: Addr8) -> String {
-        unary8("RLC", dst)
-    }
-    fn rl(&mut self, dst: Addr8) -> String {
-        unary8("RL", dst)
-    }
-    fn rrc(&mut self, dst: Addr8) -> String {
-        unary8("RRC", dst)
-    }
-    fn rr(&mut self, dst: Addr8) -> String {
-        unary8("RR", dst)
-    }
-
-    fn sla(&mut self, dst: Addr8) -> String {
-        unary8("SLA", dst)
-    }
-    fn sra(&mut self, dst: Addr8) -> String {
-        unary8("SRA", dst)
-    }
-    fn srl(&mut self, dst: Addr8) -> String {
-        unary8("SRL", dst)
-    }
-
-    fn bit(&mut self, bit: u8, src: Addr8) -> String {
-        format!("BIT {}, {}", bit, addr8_to_str(src))
-    }
-    fn res(&mut self, bit: u8, dst: Addr8) -> String {
-        format!("RES {}, {}", bit, addr8_to_str(dst))
-    }
-    fn set(&mut self, bit: u8, dst: Addr8) -> String {
-        format!("SET {}, {}", bit, addr8_to_str(dst))
-    }
-
-    fn swap(&mut self, dst: Addr8) -> String {
-        unary8("SWAP", dst)
-    }
-
-    // Undefined/illegal
-    fn undef(&mut self, opcode: u8) -> String {
-        format!("UNDEFINED ${:02X}", opcode)
     }
 }
