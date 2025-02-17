@@ -3,14 +3,24 @@
 #[macro_use]
 extern crate log;
 
-use pixels::{wgpu::BlendState, wgpu::TextureFormat, Pixels, PixelsBuilder, SurfaceTexture};
-use std::time::{Duration, Instant};
+use cartridge::Cartridge;
+use debug::Debugger;
+use gameboy::GameBoy;
+use pixels::{
+    wgpu::{BlendState, TextureFormat},
+    Pixels, PixelsBuilder, SurfaceTexture,
+};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use winit::{
+    application::ApplicationHandler,
     dpi::LogicalSize,
-    event::{ElementState, Event, KeyEvent, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event::{ElementState, KeyEvent, WindowEvent},
+    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::{KeyCode, PhysicalKey},
-    window::{Window, WindowBuilder},
+    window::{Window, WindowId},
 };
 
 mod cartridge;
@@ -28,57 +38,9 @@ mod sound;
 mod timer;
 mod video;
 
-//
-// Video Output
-//
-
-struct VideoOut {
-    window: Window,
-    pixels: Pixels,
-}
-
-impl VideoOut {
-    fn new(event_loop: &EventLoop<()>, scale: u32) -> VideoOut {
-        let window_width = video::SCREEN_WIDTH as u32 * scale;
-        let window_height = video::SCREEN_HEIGHT as u32 * scale;
-
-        let size = LogicalSize::new(window_width, window_height);
-
-        let window = WindowBuilder::new()
-            .with_inner_size(size)
-            .with_resizable(false)
-            .build(event_loop)
-            .unwrap();
-
-        let size = window.inner_size();
-        let texture = SurfaceTexture::new(size.width, size.height, &window);
-
-        let pixels = PixelsBuilder::new(
-            video::SCREEN_WIDTH as u32,
-            video::SCREEN_HEIGHT as u32,
-            texture,
-        )
-        .texture_format(TextureFormat::Bgra8UnormSrgb)
-        .blend_state(BlendState::REPLACE)
-        .enable_vsync(false)
-        .build()
-        .unwrap();
-
-        VideoOut { window, pixels }
-    }
-
-    fn blit(&mut self, pixels: &[u8]) {
-        self.pixels.frame_mut().copy_from_slice(pixels);
-    }
-
-    fn render(&mut self) {
-        self.pixels.render().unwrap();
-    }
-
-    fn set_title(&mut self, title: &str) {
-        self.window.set_title(title);
-    }
-}
+const SCALE: u32 = 4;
+const WIDTH: u32 = video::SCREEN_WIDTH as u32 * SCALE;
+const HEIGHT: u32 = video::SCREEN_HEIGHT as u32 * SCALE;
 
 fn keymap(code: KeyCode) -> Option<joypad::Button> {
     match code {
@@ -119,6 +81,177 @@ struct Args {
     rom: String,
 }
 
+struct App<'a> {
+    window: Option<Arc<Window>>,
+    pixels: Option<Pixels<'static>>,
+    gameboy: GameBoy<'a>,
+    debugger: Debugger,
+    state: State,
+    frame_duration: Duration,
+    frame_start: Instant,
+    last_fps_update: Instant,
+    frames: usize,
+}
+
+impl<'a> App<'a> {
+    pub fn new(cart: Cartridge) -> App<'a> {
+        let now = Instant::now();
+
+        let frame_duration = Duration::from_secs_f64(
+            video::SCREEN_REFRESH_CYCLES as f64 / cpu::CYCLES_PER_SEC as f64,
+        );
+
+        println!(
+            "ft: {:?} / fps: {:.02}",
+            frame_duration,
+            1.0 / frame_duration.as_secs_f64()
+        );
+
+        App {
+            window: None,
+            pixels: None,
+            gameboy: GameBoy::new(cart),
+            debugger: Debugger::new(),
+            state: State::Paused,
+            frame_duration,
+            frame_start: now,
+            last_fps_update: now,
+            frames: 0,
+        }
+    }
+}
+
+impl ApplicationHandler for App<'_> {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        let size = LogicalSize::new(WIDTH, HEIGHT);
+
+        let window = event_loop
+            .create_window(
+                Window::default_attributes()
+                    .with_inner_size(size)
+                    .with_resizable(false)
+                    .with_title("Rustboy"),
+            )
+            .unwrap();
+        let window = Arc::new(window);
+        self.window = Some(window.clone());
+
+        let size = window.inner_size();
+        let texture = SurfaceTexture::new(size.width, size.height, window.clone());
+
+        let pixels = PixelsBuilder::new(
+            video::SCREEN_WIDTH as u32,
+            video::SCREEN_HEIGHT as u32,
+            texture,
+        )
+        .texture_format(TextureFormat::Bgra8UnormSrgb)
+        .blend_state(BlendState::REPLACE)
+        .enable_vsync(false)
+        .build()
+        .unwrap();
+
+        self.pixels = Some(pixels);
+    }
+
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        if self.state == State::Done {
+            event_loop.exit();
+            return;
+        }
+
+        // Debugger
+        if self.state == State::Paused || self.state == State::Step {
+            match self.debugger.prompt(self.gameboy.cpu(), self.gameboy.mem()) {
+                debug::DebuggerCommand::Quit => self.state = State::Done,
+                debug::DebuggerCommand::Run => self.state = State::Running,
+                debug::DebuggerCommand::Step => self.state = State::Step,
+            }
+        }
+
+        // Emulation loop
+        if self.state == State::Running {
+            let mut new_frame;
+            loop {
+                new_frame = self.gameboy.step();
+
+                if self.debugger.should_break(self.gameboy.cpu()) {
+                    self.state = State::Paused;
+                    break;
+                }
+
+                if new_frame || self.state == State::Step {
+                    break;
+                }
+            }
+
+            if new_frame {
+                self.pixels
+                    .as_mut()
+                    .unwrap()
+                    .frame_mut()
+                    .copy_from_slice(self.gameboy.pixels());
+                self.pixels.as_ref().unwrap().render().unwrap();
+
+                self.state = State::WaitForSync;
+            }
+        }
+
+        // Sync frame rate
+        if self.state == State::WaitForSync && self.frame_start.elapsed() >= self.frame_duration {
+            self.state = State::Running;
+
+            self.frame_start = Instant::now();
+
+            self.frames += 1;
+
+            if self.last_fps_update.elapsed() > Duration::from_secs(1) {
+                let fps = self.frames as f64 / self.last_fps_update.elapsed().as_secs_f64();
+                self.window
+                    .as_ref()
+                    .unwrap()
+                    .set_title(format!("Rustboy - {:.02} fps", fps).as_ref());
+                self.last_fps_update = self.frame_start;
+                self.frames = 0;
+            }
+        }
+    }
+
+    fn window_event(
+        &mut self,
+        _event_loop: &ActiveEventLoop,
+        _window_id: WindowId,
+        event: WindowEvent,
+    ) {
+        match event {
+            WindowEvent::RedrawRequested => {
+                self.pixels.as_ref().unwrap().render().unwrap();
+            }
+            WindowEvent::CloseRequested => {
+                self.state = State::Done;
+            }
+            WindowEvent::KeyboardInput {
+                event:
+                    KeyEvent {
+                        physical_key: PhysicalKey::Code(keycode),
+                        state: keystate,
+                        ..
+                    },
+                ..
+            } => {
+                if keystate == ElementState::Pressed && keycode == KeyCode::Escape {
+                    self.state = State::Paused;
+                }
+
+                if let Some(button) = keymap(keycode) {
+                    self.gameboy
+                        .set_button(button, keystate == ElementState::Pressed);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 fn main() {
     let args: Args = argh::from_env();
 
@@ -143,131 +276,15 @@ fn main() {
     println!("Name: {}", cart.title);
     println!("Type: {}", cart.cartridge_type);
 
-    let mut gameboy = gameboy::GameBoy::new(cart);
-
-    let event_loop = EventLoop::new().unwrap();
-    event_loop.set_control_flow(ControlFlow::Poll);
-
-    let mut video_out = VideoOut::new(&event_loop, 4);
-    video_out.set_title("Rustboy");
-
-    let mut state = if args.pause {
+    let mut app = App::new(cart);
+    app.state = if args.pause {
         State::Paused
     } else {
         State::Running
     };
-    let mut debugger = debug::Debugger::new();
 
-    let frame_duration =
-        Duration::from_secs_f64(video::SCREEN_REFRESH_CYCLES as f64 / cpu::CYCLES_PER_SEC as f64);
-    let mut frame_start = Instant::now();
+    let event_loop = EventLoop::new().unwrap();
+    event_loop.set_control_flow(ControlFlow::Poll);
 
-    let mut last_fps_update = frame_start;
-    let mut frames = 0;
-
-    println!(
-        "ft: {:?} / fps: {:.02}",
-        frame_duration,
-        1.0 / frame_duration.as_secs_f64()
-    );
-
-    event_loop
-        .run(move |event, elwt| {
-            if let Event::WindowEvent {
-                event: WindowEvent::RedrawRequested,
-                ..
-            } = event
-            {
-                video_out.render();
-                return;
-            }
-
-            if let Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                ..
-            } = event
-            {
-                state = State::Done;
-            }
-
-            if let Event::WindowEvent {
-                event:
-                    WindowEvent::KeyboardInput {
-                        event:
-                            KeyEvent {
-                                physical_key: PhysicalKey::Code(keycode),
-                                state: keystate,
-                                ..
-                            },
-                        ..
-                    },
-                ..
-            } = event
-            {
-                if keystate == ElementState::Pressed && keycode == KeyCode::Escape {
-                    state = State::Paused;
-                }
-
-                if let Some(button) = keymap(keycode) {
-                    gameboy.set_button(button, keystate == ElementState::Pressed);
-                }
-            }
-
-            if let Event::AboutToWait = event {
-                if state == State::Done {
-                    elwt.exit();
-                    return;
-                }
-
-                // Debugger
-                if state == State::Paused || state == State::Step {
-                    match debugger.prompt(gameboy.cpu(), gameboy.mem()) {
-                        debug::DebuggerCommand::Quit => state = State::Done,
-                        debug::DebuggerCommand::Run => state = State::Running,
-                        debug::DebuggerCommand::Step => state = State::Step,
-                    }
-                }
-
-                // Emulation loop
-                if state == State::Running {
-                    let mut new_frame;
-                    loop {
-                        new_frame = gameboy.step();
-
-                        if debugger.should_break(gameboy.cpu()) {
-                            state = State::Paused;
-                            break;
-                        }
-
-                        if new_frame || state == State::Step {
-                            break;
-                        }
-                    }
-
-                    if new_frame {
-                        video_out.blit(gameboy.pixels());
-                        video_out.render();
-
-                        state = State::WaitForSync;
-                    }
-                }
-
-                // Sync frame rate
-                if state == State::WaitForSync && frame_start.elapsed() >= frame_duration {
-                    state = State::Running;
-
-                    frame_start = Instant::now();
-
-                    frames += 1;
-
-                    if last_fps_update.elapsed() > Duration::from_secs(1) {
-                        let fps = frames as f64 / last_fps_update.elapsed().as_secs_f64();
-                        video_out.set_title(format!("Rustboy - {:.02} fps", fps).as_ref());
-                        last_fps_update = frame_start;
-                        frames = 0;
-                    }
-                }
-            }
-        })
-        .unwrap();
+    event_loop.run_app(&mut app).unwrap()
 }
