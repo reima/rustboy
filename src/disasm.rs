@@ -8,7 +8,7 @@ pub struct Disasm<'a> {
     pub pc: u16,
 }
 
-impl<'a> Disasm<'a> {
+impl Disasm<'_> {
     pub fn disasm(&mut self) -> String {
         let op = Op::decode(self);
 
@@ -143,7 +143,7 @@ fn binary16(mnemonic: &str, addr1: Addr16, addr2: Addr16) -> String {
     )
 }
 
-impl<'a> Fetch for Disasm<'a> {
+impl Fetch for Disasm<'_> {
     fn fetch(&mut self) -> u8 {
         let result = self.mem.loadb(self.pc);
         self.pc += 1;

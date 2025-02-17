@@ -826,7 +826,7 @@ impl Cpu {
 
             Op::Swap(dst) => {
                 let val = dst.load(self, mem);
-                dst.store(self, mem, (val >> 4) | (val << 4));
+                dst.store(self, mem, val.rotate_left(4));
 
                 self.set_flag(ZERO_FLAG, val == 0); // zero iff zero before
                 self.set_flag(ADD_SUB_FLAG, false);
@@ -849,7 +849,7 @@ struct CpuMem<'a> {
     mem: &'a mut dyn Mem,
 }
 
-impl<'a> Fetch for CpuMem<'a> {
+impl Fetch for CpuMem<'_> {
     fn fetch(&mut self) -> u8 {
         let result = self.mem.loadb(self.cpu.regs.pc);
         self.cpu.regs.pc += 1;

@@ -39,7 +39,7 @@ pub struct MemMap<'a> {
     dummy: Dummy,
 }
 
-impl<'a> MemMap<'a> {
+impl MemMap<'_> {
     fn mem_from_addr_mut(&mut self, addr: u16) -> &mut dyn Mem {
         match addr {
             0x0000..=0x7fff | // ROM banks
@@ -83,7 +83,7 @@ impl<'a> MemMap<'a> {
     }
 }
 
-impl<'a> Mem for MemMap<'a> {
+impl Mem for MemMap<'_> {
     fn loadb(&self, addr: u16) -> u8 {
         self.mem_from_addr(addr).loadb(addr)
     }

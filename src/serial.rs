@@ -23,7 +23,7 @@ impl<'a> SerialIO<'a> {
     }
 }
 
-impl<'a> mem::Mem for SerialIO<'a> {
+impl mem::Mem for SerialIO<'_> {
     fn loadb(&self, addr: u16) -> u8 {
         match addr {
             0xff01 => self.data,
