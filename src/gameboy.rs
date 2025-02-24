@@ -1,7 +1,7 @@
 use crate::{
     cartridge::Cartridge,
     cpu::Cpu,
-    interrupt::{InterruptCtrl, IRQ_LCD, IRQ_TIMER, IRQ_VBLANK},
+    interrupt::{IRQ_LCD, IRQ_TIMER, IRQ_VBLANK, InterruptCtrl},
     joypad::{Button, Joypad},
     mem::Mem,
     ram::WorkRam,

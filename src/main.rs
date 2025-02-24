@@ -7,8 +7,8 @@ use cartridge::Cartridge;
 use debug::Debugger;
 use gameboy::GameBoy;
 use pixels::{
-    wgpu::{BlendState, TextureFormat},
     Pixels, PixelsBuilder, SurfaceTexture,
+    wgpu::{BlendState, TextureFormat},
 };
 use std::{
     sync::Arc,

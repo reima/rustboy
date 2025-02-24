@@ -2,7 +2,7 @@ use crate::cpu;
 use crate::disasm;
 use crate::mem;
 use std::fs::File;
-use std::io::{stdin, stdout, Result, Write};
+use std::io::{Result, Write, stdin, stdout};
 use std::path::Path;
 
 //

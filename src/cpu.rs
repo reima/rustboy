@@ -1,5 +1,5 @@
 use crate::{
-    instr::{Addr16, Addr8, Cond, Fetch, Op, Reg16, Reg8},
+    instr::{Addr8, Addr16, Cond, Fetch, Op, Reg8, Reg16},
     mem::Mem,
 };
 
